@@ -3,7 +3,7 @@ use anyhow::{anyhow, Context, Result};
 use tauri::{Manager, Emitter};
 use axum::{
     body::{to_bytes, Body},
-    extract::{FromRef, State},
+    extract::{connect_info::ConnectInfo, FromRef, State},
     http::{HeaderMap, HeaderValue, Method, Request, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::any,
@@ -11,7 +11,7 @@ use axum::{
 };
 use parking_lot::RwLock;
 use reqwest::redirect::Policy;
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::{IpAddr, SocketAddr}, sync::Arc};
 use tower_http::services::ServeDir;
 use tower::util::ServiceExt;
 use tracing::{error, info};
@@ -310,6 +310,9 @@ async fn start_rule_server(app: tauri::AppHandle, rule: config::ListenRule) -> R
     // - upstreams: 仅在有 upstream 时才反代
     let app = router.fallback(any(proxy_handler)).with_state(state);
 
+    // 让 proxy_handler 能拿到真实远端地址（用于访问控制）
+    let app = app.into_make_service_with_connect_info::<SocketAddr>();
+
     send_log(format!("监听地址: {} -> {}", rule.listen_addr, addr));
     info!("监听地址: {} -> {}", rule.listen_addr, addr);
 
@@ -324,13 +327,13 @@ async fn start_rule_server(app: tauri::AppHandle, rule: config::ListenRule) -> R
         send_log(format!("HTTPS 已启用: {}", addr));
 
         axum_server::bind_rustls(addr, tls_cfg)
-            .serve(app.into_make_service())
+            .serve(app)
             .await
             .map_err(|e| anyhow!(e))?;
     } else {
         send_log(format!("HTTP 已启用: {}", addr));
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, app.into_make_service())
+        axum::serve(listener, app)
             .await
             .map_err(|e| anyhow!(e))?;
     }
@@ -426,6 +429,68 @@ fn client_ip(headers: &HeaderMap) -> String {
     "-".to_string()
 }
 
+fn parse_ip(s: &str) -> Option<IpAddr> {
+    s.trim().parse::<IpAddr>().ok()
+}
+
+fn is_lan_ip(ip: &IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            o[0] == 10
+                || (o[0] == 172 && (16..=31).contains(&o[1]))
+                || (o[0] == 192 && o[1] == 168)
+                || (o[0] == 169 && o[1] == 254)
+        }
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unique_local()
+                || v6.is_unicast_link_local()
+        }
+    }
+}
+
+fn is_ip_whitelisted(ip: &IpAddr, cfg: &config::Config) -> bool {
+    cfg.whitelist.iter().any(|e| parse_ip(&e.ip).as_ref() == Some(ip))
+}
+
+fn is_access_allowed(remote: &SocketAddr, headers: &HeaderMap, cfg: &config::Config) -> bool {
+    let mut ip = remote.ip();
+
+    // 如果前面有反代，并且你希望“信任转发头”，可以用 header 覆盖 remote.ip()
+    if let Some(h) = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .and_then(parse_ip)
+    {
+        ip = h;
+    } else if let Some(h) = headers
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .and_then(parse_ip)
+    {
+        ip = h;
+    }
+
+    // 访问控制优先级最高：
+    // 1) 白名单命中 => 允许
+    // 2) 未命中白名单：只有在 allow_all_lan=true 且来源为局域网 IP 才允许
+    if is_ip_whitelisted(&ip, cfg) {
+        return true;
+    }
+
+    if cfg.allow_all_lan && is_lan_ip(&ip) {
+        return true;
+    }
+
+    false
+}
+
 fn time_local_string() -> String {
     // 形如 13/Jan/2026:23:07:40 +0800
     let now = chrono::Local::now();
@@ -475,6 +540,7 @@ fn push_log(app: &tauri::AppHandle, line: String) {
 }
 
 async fn proxy_handler(
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
     State(RuleState(rule)): State<RuleState>,
     State(HttpClient(client)): State<HttpClient>,
     State(AppHandleState(app)): State<AppHandleState>,
@@ -487,6 +553,21 @@ async fn proxy_handler(
     let method = req.method().clone();
     let uri = req.uri().clone();
     let route = match_route(&rule.routes, &path);
+
+    // 0. 访问控制（优先级最高）
+    // allow_all_lan 取消勾选时：只有白名单 IP 可以访问
+    {
+        let cfg = config::get_config();
+        if !is_access_allowed(&remote, req.headers(), &cfg) {
+            let mut resp = Response::new(Body::from("Forbidden"));
+            *resp.status_mut() = StatusCode::FORBIDDEN;
+
+            let elapsed = started_at.elapsed().as_secs_f64();
+            let line = format_access_log(&node, &headers_snapshot, &method, &uri, StatusCode::FORBIDDEN, elapsed);
+            push_log(&app, line);
+            return resp;
+        }
+    }
 
     // 1. 检查 Basic Auth（如果启用）
     if !is_basic_auth_ok(&rule, route, req.headers()) {
