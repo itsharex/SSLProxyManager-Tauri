@@ -1,0 +1,59 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default-capability",
+  "description": "Default permissions for the app",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "shell:default",
+    {
+      "identifier": "core:event:default",
+      "allow": [
+        {
+          "name": "server-start-error"
+        },
+        {
+          "name": "status"
+        },
+        {
+          "name": "request-quit"
+        },
+        {
+          "name": "update-check-result"
+        },
+        {
+          "name": "log-line"
+        },
+        {
+          "name": "logs"
+        }
+      ]
+    },
+    {
+      "identifier": "core:event:allow-listen",
+      "allow": [
+        {
+          "name": "server-start-error"
+        },
+        {
+          "name": "status"
+        },
+        {
+          "name": "request-quit"
+        },
+        {
+          "name": "update-check-result"
+        },
+        {
+          "name": "log-line"
+        },
+        {
+          "name": "logs"
+        }
+      ]
+    }
+  ]
+}

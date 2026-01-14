@@ -1,0 +1,15 @@
+{
+  "name": "SSLProxyManager",
+  "version": "1.0.3",
+  "description": "SSL 代理管理工具",
+  "scripts": {
+    "dev": "echo \"No frontend dev server configured. Edit package.json scripts.dev or src-tauri/tauri.conf.json build.beforeDevCommand\" && exit 1",
+    "build": "echo \"No frontend build configured. Edit package.json scripts.build or src-tauri/tauri.conf.json build.beforeBuildCommand\" && exit 1",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev --config tauri.conf.json",
+    "tauri:build": "tauri build --config tauri.conf.json"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

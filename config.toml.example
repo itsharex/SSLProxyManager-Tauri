@@ -1,0 +1,62 @@
+allow_all_lan = false
+
+[[rules]]
+id = "7d401c55-327d-4a88-956b-b751d8f66f25"
+listen_addr = ":8888"
+ssl_enable = true
+cert_file = "/home/fhy/mygo/SSLProxyGui/ssl/cdc-report/server.crt"
+key_file = "/home/fhy/mygo/SSLProxyGui/ssl/cdc-report/server.key"
+basic_auth_enable = true
+basic_auth_username = "fhy"
+basic_auth_password = "666999"
+basic_auth_forward_header = false
+
+[[rules.routes]]
+id = "82b402ad-70de-4122-ace8-8b206aa3de3f"
+path = "/"
+exclude_basic_auth = false
+
+[rules.routes.set_headers]
+X-Forwarded-For = "$proxy_add_x_forwarded_for"
+Host = ""
+X-Real-IP = "$remote_addr"
+X-Forwarded-Proto = "$scheme"
+
+[[rules.routes.upstreams]]
+url = "https://baidu.com"
+weight = 1
+
+[[rules]]
+id = "be84e732-15e3-439a-964c-226c00ebb0bb"
+listen_addr = "0.0.0.0:1024"
+ssl_enable = true
+cert_file = "/home/fhy/software/frp_0.65.0_linux_amd64/ssl/bt.aiti.fun/fullchain.crt"
+key_file = "/home/fhy/software/frp_0.65.0_linux_amd64/ssl/bt.aiti.fun/privkey.key"
+basic_auth_enable = true
+basic_auth_username = "test1"
+basic_auth_password = "666999"
+basic_auth_forward_header = false
+
+[[rules.routes]]
+id = "dd868e44ef864cde13d42158232bf6d5"
+path = "/"
+static_dir = "/home/fhy/mygo/staticServer/dist"
+exclude_basic_auth = false
+upstreams = []
+
+[rules.routes.set_headers]
+
+[[rules.routes]]
+id = "8fc2aaf7f5d4fa2559e14296b61b2aca"
+path = "/prod-api"
+proxy_pass_path = "/"
+exclude_basic_auth = true
+
+[rules.routes.set_headers]
+
+[[rules.routes.upstreams]]
+url = "http://127.0.0.1:8080"
+weight = 1
+
+[[whitelist]]
+ip = "192.168.1.1"

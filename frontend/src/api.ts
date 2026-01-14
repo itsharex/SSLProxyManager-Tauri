@@ -1,0 +1,127 @@
+// Tauri API 适配层，用于替代 Wails API
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { open } from '@tauri-apps/plugin-shell';
+
+// 配置相关
+export async function GetConfig() {
+  return await invoke('get_config');
+}
+
+export async function SaveConfig(config: any) {
+  return await invoke('save_config', { cfg: config });
+}
+
+// 版本相关
+export async function GetVersion() {
+  return await invoke('get_version');
+}
+
+// 更新检查
+export async function CheckUpdate() {
+  return await invoke('check_update');
+}
+
+// 打开 URL
+export async function OpenURL(url: string) {
+  await open(url);
+}
+
+// 服务器控制
+export async function StartServer() {
+  return await invoke('start_server');
+}
+
+export async function StopServer() {
+  return await invoke('stop_server');
+}
+
+export async function GetStatus() {
+  return await invoke('get_status');
+}
+
+// 日志相关
+export async function GetLogs() {
+  return await invoke('get_logs');
+}
+
+export async function ClearLogs() {
+  return await invoke('clear_logs');
+}
+
+// 指标相关
+export async function GetMetrics() {
+  return await invoke('get_metrics');
+}
+
+export async function QueryHistoricalMetrics(req: any) {
+  return await invoke('query_historical_metrics', { req });
+}
+
+export async function QueryRequestLogs(req: any) {
+  return await invoke('query_request_logs', { req });
+}
+
+// 黑名单相关
+export async function AddBlacklistEntry(ip: string, reason: string, durationHours: number) {
+  return await invoke('add_blacklist_entry', { ip, reason, durationHours });
+}
+
+export async function RemoveBlacklistEntry(ip: string) {
+  return await invoke('remove_blacklist_entry', { ip });
+}
+
+export async function GetBlacklistEntries() {
+  return await invoke('get_blacklist_entries');
+}
+
+export async function RefreshBlacklistCache() {
+  return await invoke('refresh_blacklist_cache');
+}
+
+// 数据库相关
+export async function GetMetricsDBStatus() {
+  return await invoke('get_metrics_db_status');
+}
+
+export async function TestMetricsDBConnection(dbPath: string) {
+  return await invoke('test_metrics_db_connection', { dbPath });
+}
+
+// 文件对话框
+export async function OpenCertFileDialog() {
+  return await invoke('open_cert_file_dialog');
+}
+
+export async function OpenKeyFileDialog() {
+  return await invoke('open_key_file_dialog');
+}
+
+export async function OpenDirectoryDialog() {
+  return await invoke('open_directory_dialog');
+}
+
+// 应用控制
+export async function HideToTray() {
+  return await invoke('hide_to_tray');
+}
+
+export async function QuitApp() {
+  return await invoke('quit_app');
+}
+
+// 事件监听
+export async function EventsOn(event: string, callback: (data: any) => void) {
+  const unlisten = await listen(event, (event) => {
+    callback(event.payload);
+  });
+  // 返回取消监听的函数
+  return unlisten;
+}
+
+// 事件取消监听（Tauri 中通过返回的 unlisten 函数实现）
+export function EventsOff(unlisten: (() => void) | null) {
+  if (unlisten) {
+    unlisten();
+  }
+}
