@@ -45,13 +45,13 @@
     >
       <el-table-column prop="ip" label="IP地址" width="180" sortable />
       <el-table-column prop="reason" label="拉黑原因" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="expiresAt" label="过期时间" width="180" sortable>
+      <el-table-column prop="expires_at" label="过期时间" width="180" sortable>
         <template #default="{ row }">
-          <span v-if="row.expiresAt === 0">永久</span>
+          <span v-if="row.expires_at === 0">永久</span>
           <span v-else>
-            {{ formatTime(row.expiresAt) }}
+            {{ formatTime(row.expires_at) }}
             <el-tag 
-              v-if="isExpired(row.expiresAt)" 
+              v-if="isExpired(row.expires_at)" 
               type="danger" 
               size="small" 
               style="margin-left: 8px;"
@@ -69,9 +69,9 @@
           </span>
         </template>
       </el-table-column>
-      <el-table-column prop="createdAt" label="创建时间" width="180" sortable>
+      <el-table-column prop="created_at" label="创建时间" width="180" sortable>
         <template #default="{ row }">
-          {{ formatTime(row.createdAt) }}
+          {{ formatTime(row.created_at) }}
         </template>
       </el-table-column>
       <el-table-column label="操作" width="120" fixed="right">
@@ -156,9 +156,9 @@ import { AddBlacklistEntry, RemoveBlacklistEntry, GetBlacklistEntries, RefreshBl
 interface BlacklistEntry {
   id: number
   ip: string
-  reason: string
-  expiresAt: number
-  createdAt: number
+  reason?: string | null
+  expires_at: number
+  created_at: number
 }
 
 const blacklist = ref<BlacklistEntry[]>([])

@@ -13,7 +13,7 @@ pub fn get_config() -> Result<config::Config, String> {
 }
 
 #[tauri::command]
-pub fn save_config(mut cfg: config::Config) -> Result<config::Config, String> {
+pub async fn save_config(mut cfg: config::Config) -> Result<config::Config, String> {
     // 保存前补齐 rules/routes 的 id（None 或空字符串都会生成）
     config::ensure_config_ids_for_save(&mut cfg);
 
@@ -23,7 +23,9 @@ pub fn save_config(mut cfg: config::Config) -> Result<config::Config, String> {
     // 更新数据库配置
     if let Some(metrics_storage) = cfg.metrics_storage.as_ref() {
         if metrics_storage.enabled {
-            metrics::init_db(metrics_storage.db_path.clone()).map_err(|e| e.to_string())?;
+            metrics::init_db(metrics_storage.db_path.clone())
+                .await
+                .map_err(|e| e.to_string())?;
         }
     }
 
@@ -98,28 +100,30 @@ pub fn query_historical_metrics(req: metrics::QueryMetricsRequest) -> Result<met
 }
 
 #[tauri::command]
-pub fn query_request_logs(req: metrics::QueryRequestLogsRequest) -> Result<metrics::QueryRequestLogsResponse, String> {
-    metrics::query_request_logs(req).map_err(|e| e.to_string())
+pub async fn query_request_logs(req: metrics::QueryRequestLogsRequest) -> Result<metrics::QueryRequestLogsResponse, String> {
+    metrics::query_request_logs(req).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn add_blacklist_entry(ip: String, reason: String, duration_hours: i32) -> Result<metrics::BlacklistEntry, String> {
-    metrics::add_blacklist_entry(ip, reason, duration_hours).map_err(|e| e.to_string())
+pub async fn add_blacklist_entry(ip: String, reason: String, duration_hours: i32) -> Result<metrics::BlacklistEntry, String> {
+    metrics::add_blacklist_entry(ip, reason, duration_hours)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn remove_blacklist_entry(ip: String) -> Result<(), String> {
-    metrics::remove_blacklist_entry(ip).map_err(|e| e.to_string())
+pub async fn remove_blacklist_entry(ip: String) -> Result<(), String> {
+    metrics::remove_blacklist_entry(ip).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_blacklist_entries() -> Result<Vec<metrics::BlacklistEntry>, String> {
-    metrics::get_blacklist_entries().map_err(|e| e.to_string())
+pub async fn get_blacklist_entries() -> Result<Vec<metrics::BlacklistEntry>, String> {
+    metrics::get_blacklist_entries().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn refresh_blacklist_cache() -> Result<(), String> {
-    metrics::refresh_blacklist_cache().map_err(|e| e.to_string())
+pub async fn refresh_blacklist_cache() -> Result<(), String> {
+    metrics::refresh_blacklist_cache().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -128,8 +132,8 @@ pub fn get_metrics_db_status() -> Result<metrics::MetricsDBStatus, String> {
 }
 
 #[tauri::command]
-pub fn test_metrics_db_connection(db_path: String) -> Result<(bool, String), String> {
-    metrics::test_metrics_db_connection(db_path).map_err(|e| e.to_string())
+pub async fn test_metrics_db_connection(db_path: String) -> Result<(bool, String), String> {
+    metrics::test_metrics_db_connection(db_path).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

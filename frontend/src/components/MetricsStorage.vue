@@ -7,15 +7,15 @@
 
     <el-form :model="localConfig" label-width="180px">
       <el-form-item label="启用数据持久化">
-        <el-switch v-model="localConfig.Enabled" />
+        <el-switch v-model="localConfig.enabled" />
         <el-text type="info" size="small" class="hint">
           启用后，系统将定期将指标数据保存到数据库，可用于查看历史数据
         </el-text>
       </el-form-item>
 
-      <el-form-item v-if="localConfig.Enabled" label="数据库文件路径">
+      <el-form-item v-if="localConfig.enabled" label="数据库文件路径">
         <el-input 
-          v-model="localConfig.DBPath" 
+          v-model="localConfig.db_path" 
           placeholder="留空使用默认路径：程序目录/data/metrics.db"
           style="max-width: 500px;"
         />
@@ -25,13 +25,13 @@
       </el-form-item>
 
       <!-- 数据库状态显示 -->
-      <el-card v-if="localConfig.Enabled" class="status-card" shadow="never">
+      <el-card v-if="localConfig.enabled" class="status-card" shadow="never">
         <template #header>
           <span>数据库状态</span>
         </template>
         <div v-if="dbStatus" class="status-content">
           <el-alert
-            v-if="dbStatus.initialized && dbStatus.fileExists"
+            v-if="dbStatus.initialized && dbStatus.file_exists"
             title="数据库已就绪"
             type="success"
             :closable="false"
@@ -46,7 +46,7 @@
           </el-alert>
           
           <el-alert
-            v-else-if="dbStatus.initialized && !dbStatus.fileExists && dbStatus.dirExists && dbStatus.dirWritable"
+            v-else-if="dbStatus.initialized && !dbStatus.file_exists && dbStatus.dir_exists && dbStatus.dir_writable"
             title="数据库就绪（等待首次写入）"
             type="success"
             :closable="false"
@@ -72,10 +72,10 @@
               <div class="status-detail">
                 <p v-if="dbStatus.path"><strong>数据库路径：</strong>{{ dbStatus.path }}</p>
                 <p v-if="dbStatus.error"><strong>错误信息：</strong>{{ dbStatus.error }}</p>
-                <p v-if="!dbStatus.dirExists" class="error-hint">
+                <p v-if="!dbStatus.dir_exists" class="error-hint">
                   目录不存在，请检查路径是否正确，或手动创建目录
                 </p>
-                <p v-else-if="!dbStatus.dirWritable" class="error-hint">
+                <p v-else-if="!dbStatus.dir_writable" class="error-hint">
                   目录存在但无写入权限，请检查目录权限设置
                 </p>
                 <p v-else class="error-hint">请检查路径配置和权限设置</p>
@@ -103,7 +103,7 @@
         </el-button>
       </el-card>
 
-      <el-card v-if="localConfig.Enabled" class="info-card" shadow="never">
+      <el-card v-if="localConfig.enabled" class="info-card" shadow="never">
         <template #header>
           <span>数据说明</span>
         </template>
@@ -130,8 +130,8 @@ const props = defineProps<{
 }>()
 
 const localConfig = ref({
-  Enabled: false,
-  DBPath: '',
+  enabled: false,
+  db_path: '',
 })
 
 const { dbStatus, loading: checkingStatus, checkDBStatus } = useDBStatus()
@@ -145,12 +145,12 @@ watch(() => props.config, (newConfig) => {
   
   isUpdatingFromProps = true
   try {
-    if (newConfig.MetricsStorage) {
-      localConfig.value.Enabled = newConfig.MetricsStorage.Enabled || false
-      localConfig.value.DBPath = newConfig.MetricsStorage.DBPath || ''
+    if (newConfig.metrics_storage) {
+      localConfig.value.enabled = newConfig.metrics_storage.enabled || false
+      localConfig.value.db_path = newConfig.metrics_storage.db_path || ''
     } else {
-      localConfig.value.Enabled = false
-      localConfig.value.DBPath = ''
+      localConfig.value.enabled = false
+      localConfig.value.db_path = ''
     }
   } finally {
     isUpdatingFromProps = false
@@ -165,15 +165,15 @@ const handleCheckDBStatus = async () => {
 // 获取配置（供父组件调用）
 const getConfig = () => {
   return {
-    MetricsStorage: {
-      Enabled: localConfig.value.Enabled || false,
-      DBPath: localConfig.value.DBPath || '',
+    metrics_storage: {
+      enabled: localConfig.value.enabled || false,
+      db_path: localConfig.value.db_path || '',
     }
   }
 }
 
 // 监听配置变化，自动检查状态
-watch(() => localConfig.value.Enabled, (enabled) => {
+watch(() => localConfig.value.enabled, (enabled) => {
   if (enabled) {
     // 延迟一下，等待后端配置更新
     setTimeout(() => {
@@ -185,8 +185,8 @@ watch(() => localConfig.value.Enabled, (enabled) => {
 })
 
 // 监听路径变化
-watch(() => localConfig.value.DBPath, () => {
-  if (localConfig.value.Enabled) {
+watch(() => localConfig.value.db_path, () => {
+  if (localConfig.value.enabled) {
     // 路径变化后延迟检查状态
     setTimeout(() => {
       checkDBStatus(true) // false 表示不显示消息提示

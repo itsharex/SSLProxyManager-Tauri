@@ -1,4 +1,4 @@
-use crate::config;
+use crate::{config, metrics};
 use anyhow::{anyhow, Context, Result};
 use tauri::{Manager, Emitter};
 use axum::{
@@ -558,6 +558,44 @@ async fn proxy_handler(
     // allow_all_lan 取消勾选时：只有白名单 IP 可以访问
     {
         let cfg = config::get_config();
+
+        // 黑名单优先：命中直接拒绝
+        let client_ip_str = {
+            // 与 is_access_allowed 采用相同的 IP 选择逻辑：默认用 remote.ip()，若有转发头则优先用头
+            let mut ip = remote.ip();
+            if let Some(h) = req
+                .headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .and_then(parse_ip)
+            {
+                ip = h;
+            } else if let Some(h) = req
+                .headers()
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .and_then(parse_ip)
+            {
+                ip = h;
+            }
+            ip.to_string()
+        };
+
+        if metrics::is_ip_blacklisted(&client_ip_str) {
+            let mut resp = Response::new(Body::from("Forbidden"));
+            *resp.status_mut() = StatusCode::FORBIDDEN;
+
+            let elapsed = started_at.elapsed().as_secs_f64();
+            let line = format_access_log(&node, &headers_snapshot, &method, &uri, StatusCode::FORBIDDEN, elapsed);
+            push_log(&app, line);
+            return resp;
+        }
+
         if !is_access_allowed(&remote, req.headers(), &cfg) {
             let mut resp = Response::new(Body::from("Forbidden"));
             *resp.status_mut() = StatusCode::FORBIDDEN;

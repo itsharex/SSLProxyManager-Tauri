@@ -17,10 +17,12 @@ pnpm-debug.log*
 # Local Configuration
 # Ignore local config file, use config.toml.example as a template
 config.toml
+*db
 
 # IDEs
 .idea/
 .vscode/
+
 
 # OS generated files
 .DS_Store

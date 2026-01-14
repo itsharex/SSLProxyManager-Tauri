@@ -8,10 +8,15 @@ pub fn init(app: &AppHandle) -> Result<()> {
     // 初始化配置
     crate::config::load_config()?;
     
-    // 初始化数据库
+    // 初始化数据库（异步，避免在 runtime 内 block_on 导致崩溃）
     if let Some(metrics_storage) = crate::config::get_config().metrics_storage.as_ref() {
         if metrics_storage.enabled {
-            crate::metrics::init_db(metrics_storage.db_path.clone())?;
+            let db_path = metrics_storage.db_path.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = crate::metrics::init_db(db_path).await {
+                    eprintln!("初始化数据库失败: {e}");
+                }
+            });
         }
     }
     

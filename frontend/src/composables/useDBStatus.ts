@@ -8,9 +8,9 @@ export interface DBStatus {
   initialized: boolean
   path: string
   error?: string
-  fileExists: boolean
-  dirExists: boolean
-  dirWritable: boolean
+  file_exists: boolean
+  dir_exists: boolean
+  dir_writable: boolean
   message?: string
 }
 
@@ -44,7 +44,7 @@ export const useDBStatus = () => {
       sharedDBStatus.value = status
 
       if (showMessage) {
-        if (status.initialized && status.fileExists) {
+        if (status.initialized && status.file_exists) {
           ElMessage.success('数据库状态正常')
         } else if (status.error) {
           ElMessage.warning('数据库状态异常：' + status.error)

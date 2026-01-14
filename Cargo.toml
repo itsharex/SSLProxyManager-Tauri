@@ -21,6 +21,7 @@ reqwest = { version = "0.12", features = ["json"] }
 toml = "0.8"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite"] }
 anyhow = "1.0"
+async-trait = "0.1"
 thiserror = "1.0"
 once_cell = "1.20"
 parking_lot = "0.12"
