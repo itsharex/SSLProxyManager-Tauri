@@ -7,8 +7,9 @@ pub fn init(app: &AppHandle) -> Result<()> {
 
     // 初始化配置
     crate::config::load_config()?;
-    
+
     // 初始化数据库（异步，避免在 runtime 内 block_on 导致崩溃）
+    // 以及：启动请求日志异步写入 worker
     if let Some(metrics_storage) = crate::config::get_config().metrics_storage.as_ref() {
         if metrics_storage.enabled {
             let db_path = metrics_storage.db_path.clone();
@@ -16,10 +17,11 @@ pub fn init(app: &AppHandle) -> Result<()> {
                 if let Err(e) = crate::metrics::init_db(db_path).await {
                     eprintln!("初始化数据库失败: {e}");
                 }
+                crate::metrics::init_request_log_writer().await;
             });
         }
     }
-    
+
     // 启动后自动检查更新
     let app_handle = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -29,7 +31,9 @@ pub fn init(app: &AppHandle) -> Result<()> {
                 if let Ok(result) = crate::update::check_for_updates(
                     env!("CARGO_PKG_VERSION"),
                     update_config.clone(),
-                ).await {
+                )
+                .await
+                {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.emit("update-check-result", result);
                     }
@@ -37,6 +41,6 @@ pub fn init(app: &AppHandle) -> Result<()> {
             }
         }
     });
-    
+
     Ok(())
 }

@@ -808,7 +808,7 @@ h1 {
 }
 
 .sidebar-nav {
-  width: 240px;
+  width: 180px;
   flex-shrink: 0;
   border-radius: 16px;
   backdrop-filter: blur(10px);

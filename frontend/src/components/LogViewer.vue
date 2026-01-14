@@ -33,7 +33,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
-import { ClearLogs, EventsOn } from '../api'
+import { ClearLogs, EventsOn, GetLogs } from '../api'
 
 // 最大显示的日志条数（前端限制，只保留最近3000条以节省内存）
 const MAX_DISPLAY_LOGS = 3000
@@ -90,8 +90,15 @@ onMounted(async () => {
     })
   })
 
-  // 主动请求一次
-  EventsEmit('refresh-logs')
+  // 主动请求一次（初始化拉取历史日志）
+  try {
+    const existing = await GetLogs()
+    if (Array.isArray(existing)) {
+      allLogs.value = existing.slice(-MAX_DISPLAY_LOGS)
+    }
+  } catch {
+    // ignore
+  }
   
   // 禁止拖动选中的文本
   if (logBox.value) {

@@ -4,11 +4,10 @@
 mod app;
 mod commands;
 mod config;
-mod proxy;
 mod metrics;
-mod update;
+mod proxy;
 mod single_instance;
-
+mod update;
 
 fn main() {
     // 初始化日志

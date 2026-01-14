@@ -1,6 +1,5 @@
 use crate::{config, metrics};
 use anyhow::{anyhow, Context, Result};
-use tauri::{Manager, Emitter};
 use axum::{
     body::{to_bytes, Body},
     extract::{connect_info::ConnectInfo, FromRef, State},
@@ -11,9 +10,13 @@ use axum::{
 };
 use parking_lot::RwLock;
 use reqwest::redirect::Policy;
-use std::{net::{IpAddr, SocketAddr}, sync::Arc};
-use tower_http::services::ServeDir;
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
+use tauri::{Emitter, Manager};
 use tower::util::ServiceExt;
+use tower_http::services::ServeDir;
 use tracing::{error, info};
 
 static IS_RUNNING: RwLock<bool> = RwLock::new(false);
@@ -144,15 +147,21 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
                     // 获取最新的配置来生成详细的启动日志
                     let final_cfg = config::get_config();
                     for r in &final_cfg.rules {
-                        let routes_summary = r.routes.iter().map(|rt| {
-                            format!("{} -> {} upstreams", rt.path.as_deref().unwrap_or("/"), rt.upstreams.len())
-                        }).collect::<Vec<_>>().join(", ");
+                        let routes_summary = r
+                            .routes
+                            .iter()
+                            .map(|rt| {
+                                format!(
+                                    "{} -> {} upstreams",
+                                    rt.path.as_deref().unwrap_or("/"),
+                                    rt.upstreams.len()
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
                         let log_line = format!(
                             "[NODE {}] Server started | SSL: {} | Routes: [{}] | Allow all LAN: {}",
-                            r.listen_addr,
-                            r.ssl_enable,
-                            routes_summary,
-                            final_cfg.allow_all_lan
+                            r.listen_addr, r.ssl_enable, routes_summary, final_cfg.allow_all_lan
                         );
                         send_log_with_app(&app_handle, log_line);
                     }
@@ -333,9 +342,7 @@ async fn start_rule_server(app: tauri::AppHandle, rule: config::ListenRule) -> R
     } else {
         send_log(format!("HTTP 已启用: {}", addr));
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, app)
-            .await
-            .map_err(|e| anyhow!(e))?;
+        axum::serve(listener, app).await.map_err(|e| anyhow!(e))?;
     }
 
     Ok(())
@@ -367,7 +374,11 @@ fn match_route<'a>(routes: &'a [config::Route], path: &str) -> Option<&'a config
         .map(|(_, r)| r)
 }
 
-fn is_basic_auth_ok(rule: &config::ListenRule, route: Option<&config::Route>, headers: &HeaderMap) -> bool {
+fn is_basic_auth_ok(
+    rule: &config::ListenRule,
+    route: Option<&config::Route>,
+    headers: &HeaderMap,
+) -> bool {
     if let Some(r) = route {
         if r.exclude_basic_auth.unwrap_or(false) {
             return true;
@@ -388,7 +399,8 @@ fn is_basic_auth_ok(rule: &config::ListenRule, route: Option<&config::Route>, he
         return false;
     };
 
-    let Ok(decoded) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64) else {
+    let Ok(decoded) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+    else {
         return false;
     };
     let Ok(s) = String::from_utf8(decoded) else {
@@ -398,7 +410,6 @@ fn is_basic_auth_ok(rule: &config::ListenRule, route: Option<&config::Route>, he
     let expected = format!("{}:{}", rule.basic_auth_username, rule.basic_auth_password);
     s == expected
 }
-
 
 fn header_str(headers: &HeaderMap, key: &str) -> String {
     headers
@@ -442,16 +453,14 @@ fn is_lan_ip(ip: &IpAddr) -> bool {
                 || (o[0] == 192 && o[1] == 168)
                 || (o[0] == 169 && o[1] == 254)
         }
-        IpAddr::V6(v6) => {
-            v6.is_loopback()
-                || v6.is_unique_local()
-                || v6.is_unicast_link_local()
-        }
+        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unique_local() || v6.is_unicast_link_local(),
     }
 }
 
 fn is_ip_whitelisted(ip: &IpAddr, cfg: &config::Config) -> bool {
-    cfg.whitelist.iter().any(|e| parse_ip(&e.ip).as_ref() == Some(ip))
+    cfg.whitelist
+        .iter()
+        .any(|e| parse_ip(&e.ip).as_ref() == Some(ip))
 }
 
 fn is_access_allowed(remote: &SocketAddr, headers: &HeaderMap, cfg: &config::Config) -> bool {
@@ -502,7 +511,14 @@ fn request_line(method: &Method, uri: &Uri) -> String {
     format!("{} {} HTTP/1.1", method.as_str(), uri)
 }
 
-fn format_access_log(node: &str, headers: &HeaderMap, method: &Method, uri: &Uri, status: StatusCode, elapsed: f64) -> String {
+fn format_access_log(
+    node: &str,
+    headers: &HeaderMap,
+    method: &Method,
+    uri: &Uri,
+    status: StatusCode,
+    elapsed: f64,
+) -> String {
     let ip = client_ip(headers);
     let time_local = time_local_string();
     let req_line = request_line(method, uri);
@@ -591,8 +607,31 @@ async fn proxy_handler(
             *resp.status_mut() = StatusCode::FORBIDDEN;
 
             let elapsed = started_at.elapsed().as_secs_f64();
-            let line = format_access_log(&node, &headers_snapshot, &method, &uri, StatusCode::FORBIDDEN, elapsed);
+            let line = format_access_log(
+                &node,
+                &headers_snapshot,
+                &method,
+                &uri,
+                StatusCode::FORBIDDEN,
+                elapsed,
+            );
             push_log(&app, line);
+
+            metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                timestamp: chrono::Utc::now().timestamp(),
+                listen_addr: node.clone(),
+                client_ip: client_ip(&headers_snapshot),
+                remote_ip: remote.ip().to_string(),
+                method: method.as_str().to_string(),
+                request_path: path.clone(),
+                request_host: header_str(&headers_snapshot, "host"),
+                status_code: StatusCode::FORBIDDEN.as_u16() as i32,
+                upstream: "".to_string(),
+                latency_ms: elapsed * 1000.0,
+                user_agent: header_str(&headers_snapshot, "user-agent"),
+                referer: header_str(&headers_snapshot, "referer"),
+            });
+
             return resp;
         }
 
@@ -601,8 +640,31 @@ async fn proxy_handler(
             *resp.status_mut() = StatusCode::FORBIDDEN;
 
             let elapsed = started_at.elapsed().as_secs_f64();
-            let line = format_access_log(&node, &headers_snapshot, &method, &uri, StatusCode::FORBIDDEN, elapsed);
+            let line = format_access_log(
+                &node,
+                &headers_snapshot,
+                &method,
+                &uri,
+                StatusCode::FORBIDDEN,
+                elapsed,
+            );
             push_log(&app, line);
+
+            metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                timestamp: chrono::Utc::now().timestamp(),
+                listen_addr: node.clone(),
+                client_ip: client_ip(&headers_snapshot),
+                remote_ip: remote.ip().to_string(),
+                method: method.as_str().to_string(),
+                request_path: path.clone(),
+                request_host: header_str(&headers_snapshot, "host"),
+                status_code: StatusCode::FORBIDDEN.as_u16() as i32,
+                upstream: "".to_string(),
+                latency_ms: elapsed * 1000.0,
+                user_agent: header_str(&headers_snapshot, "user-agent"),
+                referer: header_str(&headers_snapshot, "referer"),
+            });
+
             return resp;
         }
     }
@@ -617,16 +679,61 @@ async fn proxy_handler(
         );
 
         let elapsed = started_at.elapsed().as_secs_f64();
-        let line = format_access_log(&node, &headers_snapshot, &method, &uri, StatusCode::UNAUTHORIZED, elapsed);
+        let line = format_access_log(
+            &node,
+            &headers_snapshot,
+            &method,
+            &uri,
+            StatusCode::UNAUTHORIZED,
+            elapsed,
+        );
         push_log(&app, line);
+
+        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+            timestamp: chrono::Utc::now().timestamp(),
+            listen_addr: node.clone(),
+            client_ip: client_ip(&headers_snapshot),
+            remote_ip: remote.ip().to_string(),
+            method: method.as_str().to_string(),
+            request_path: path.clone(),
+            request_host: header_str(&headers_snapshot, "host"),
+            status_code: StatusCode::UNAUTHORIZED.as_u16() as i32,
+            upstream: "".to_string(),
+            latency_ms: elapsed * 1000.0,
+            user_agent: header_str(&headers_snapshot, "user-agent"),
+            referer: header_str(&headers_snapshot, "referer"),
+        });
 
         return resp;
     }
 
     let Some(route) = route else {
         let elapsed = started_at.elapsed().as_secs_f64();
-        let line = format_access_log(&node, &headers_snapshot, &method, &uri, StatusCode::NOT_FOUND, elapsed);
+        let line = format_access_log(
+            &node,
+            &headers_snapshot,
+            &method,
+            &uri,
+            StatusCode::NOT_FOUND,
+            elapsed,
+        );
         push_log(&app, line);
+
+        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+            timestamp: chrono::Utc::now().timestamp(),
+            listen_addr: node.clone(),
+            client_ip: client_ip(&headers_snapshot),
+            remote_ip: remote.ip().to_string(),
+            method: method.as_str().to_string(),
+            request_path: path.clone(),
+            request_host: header_str(&headers_snapshot, "host"),
+            status_code: StatusCode::NOT_FOUND.as_u16() as i32,
+            upstream: "".to_string(),
+            latency_ms: elapsed * 1000.0,
+            user_agent: header_str(&headers_snapshot, "user-agent"),
+            referer: header_str(&headers_snapshot, "referer"),
+        });
+
         return (StatusCode::NOT_FOUND, "No route").into_response();
     };
 
@@ -634,7 +741,7 @@ async fn proxy_handler(
     if let Some(dir) = route.static_dir.as_ref() {
         // 构建 ServeDir 实例
         let serve_dir = ServeDir::new(dir);
-        
+
         // 处理请求并获取响应
         match serve_dir.oneshot(req).await {
             Ok(response) => {
@@ -645,8 +752,25 @@ async fn proxy_handler(
                 // 如果静态文件存在（200-299）或重定向，记录日志并返回
                 if status.is_success() || status.is_redirection() {
                     let elapsed = started_at.elapsed().as_secs_f64();
-                    let line = format_access_log(&node, &headers_snapshot, &method, &uri, status, elapsed);
+                    let line =
+                        format_access_log(&node, &headers_snapshot, &method, &uri, status, elapsed);
                     push_log(&app, line);
+
+                    metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                        timestamp: chrono::Utc::now().timestamp(),
+                        listen_addr: node.clone(),
+                        client_ip: client_ip(&headers_snapshot),
+                        remote_ip: remote.ip().to_string(),
+                        method: method.as_str().to_string(),
+                        request_path: path.clone(),
+                        request_host: header_str(&headers_snapshot, "host"),
+                        status_code: status.as_u16() as i32,
+                        upstream: "".to_string(),
+                        latency_ms: elapsed * 1000.0,
+                        user_agent: header_str(&headers_snapshot, "user-agent"),
+                        referer: header_str(&headers_snapshot, "referer"),
+                    });
+
                     return response;
                 }
 
@@ -655,12 +779,42 @@ async fn proxy_handler(
                     && (method == Method::GET || method == Method::HEAD)
                     && !is_asset_path(&path)
                 {
-                    if let Ok(bytes) = tokio::fs::read(std::path::Path::new(dir).join("index.html")).await {
+                    if let Ok(bytes) =
+                        tokio::fs::read(std::path::Path::new(dir).join("index.html")).await
+                    {
                         let mut resp = Response::new(Body::from(bytes));
                         resp.headers_mut().insert(
                             axum::http::header::CONTENT_TYPE,
                             HeaderValue::from_static("text/html; charset=utf-8"),
                         );
+
+                        // SPA 回退：按 200 记录请求日志
+                        let elapsed = started_at.elapsed().as_secs_f64();
+                        let line = format_access_log(
+                            &node,
+                            &headers_snapshot,
+                            &method,
+                            &uri,
+                            StatusCode::OK,
+                            elapsed,
+                        );
+                        push_log(&app, line);
+
+                        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                            timestamp: chrono::Utc::now().timestamp(),
+                            listen_addr: node.clone(),
+                            client_ip: client_ip(&headers_snapshot),
+                            remote_ip: remote.ip().to_string(),
+                            method: method.as_str().to_string(),
+                            request_path: path.clone(),
+                            request_host: header_str(&headers_snapshot, "host"),
+                            status_code: StatusCode::OK.as_u16() as i32,
+                            upstream: "".to_string(),
+                            latency_ms: elapsed * 1000.0,
+                            user_agent: header_str(&headers_snapshot, "user-agent"),
+                            referer: header_str(&headers_snapshot, "referer"),
+                        });
+
                         return resp;
                     }
                 }
@@ -672,36 +826,95 @@ async fn proxy_handler(
                 // ServeDir 内部错误，继续处理
             }
         }
-        
+
         // 静态资源处理失败，且不是 SPA 回退场景，返回 404
+        let elapsed = started_at.elapsed().as_secs_f64();
+        let line = format_access_log(
+            &node,
+            &headers_snapshot,
+            &method,
+            &uri,
+            StatusCode::NOT_FOUND,
+            elapsed,
+        );
+        push_log(&app, line);
+
+        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+            timestamp: chrono::Utc::now().timestamp(),
+            listen_addr: node.clone(),
+            client_ip: client_ip(&headers_snapshot),
+            remote_ip: remote.ip().to_string(),
+            method: method.as_str().to_string(),
+            request_path: path.clone(),
+            request_host: header_str(&headers_snapshot, "host"),
+            status_code: StatusCode::NOT_FOUND.as_u16() as i32,
+            upstream: "".to_string(),
+            latency_ms: elapsed * 1000.0,
+            user_agent: header_str(&headers_snapshot, "user-agent"),
+            referer: header_str(&headers_snapshot, "referer"),
+        });
+
         return (StatusCode::NOT_FOUND, "Static file not found").into_response();
     }
-    
+
     // 3. 处理反代逻辑（如果有 upstream）
     if let Some(upstream) = route.upstreams.first() {
-        let target = match build_upstream_url(&upstream.url, route.proxy_pass_path.as_deref(), &uri) {
+        let target = match build_upstream_url(&upstream.url, route.proxy_pass_path.as_deref(), &uri)
+        {
             Ok(u) => u,
             Err(e) => {
+                let elapsed = started_at.elapsed().as_secs_f64();
+                let line = format_access_log(
+                    &node,
+                    &headers_snapshot,
+                    &method,
+                    &uri,
+                    StatusCode::BAD_GATEWAY,
+                    elapsed,
+                );
+                push_log(&app, line);
+
+                metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                    timestamp: chrono::Utc::now().timestamp(),
+                    listen_addr: node.clone(),
+                    client_ip: client_ip(&headers_snapshot),
+                    remote_ip: remote.ip().to_string(),
+                    method: method.as_str().to_string(),
+                    request_path: path.clone(),
+                    request_host: header_str(&headers_snapshot, "host"),
+                    status_code: StatusCode::BAD_GATEWAY.as_u16() as i32,
+                    upstream: upstream.url.clone(),
+                    latency_ms: elapsed * 1000.0,
+                    user_agent: header_str(&headers_snapshot, "user-agent"),
+                    referer: header_str(&headers_snapshot, "referer"),
+                });
+
                 return (StatusCode::BAD_GATEWAY, format!("bad upstream url: {e}")).into_response();
             }
         };
-        
-        send_log(format!("反代: {} {} -> {}", req.method(), req.uri(), target));
-        
-        let mut builder = client.request(req.method().clone(), target);
-        
+
+        send_log(format!(
+            "反代: {} {} -> {}",
+            req.method(),
+            req.uri(),
+            target
+        ));
+
+        let target = target;
+        let mut builder = client.request(req.method().clone(), target.clone());
+
         // 复制请求头
         for (k, v) in req.headers().iter() {
             if !is_hop_header(k.as_str()) {
                 builder = builder.header(k, v);
             }
         }
-        
+
         // 处理 Basic Auth 转发
         if !rule.basic_auth_forward_header {
             builder = builder.header(axum::http::header::AUTHORIZATION, "");
         }
-        
+
         // 处理请求体
         let body_bytes = match to_bytes(req.into_body(), usize::MAX).await {
             Ok(b) => b,
@@ -709,18 +922,49 @@ async fn proxy_handler(
                 return (StatusCode::BAD_GATEWAY, format!("read body failed: {e}")).into_response();
             }
         };
-        
+
         // 发送请求并返回响应（复用原先的 reqwest -> axum Response 转换逻辑）
         let resp = match builder.body(body_bytes).send().await {
             Ok(r) => r,
             Err(e) => {
-                return (StatusCode::BAD_GATEWAY, format!("upstream request failed: {e}")).into_response();
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("upstream request failed: {e}"),
+                )
+                    .into_response();
             }
         };
 
         let status = resp.status();
+        let elapsed = started_at.elapsed().as_secs_f64();
+        let line = format_access_log(
+            &node,
+            &headers_snapshot,
+            &method,
+            &uri,
+            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
+            elapsed,
+        );
+        push_log(&app, line);
+
+        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+            timestamp: chrono::Utc::now().timestamp(),
+            listen_addr: node.clone(),
+            client_ip: client_ip(&headers_snapshot),
+            remote_ip: remote.ip().to_string(),
+            method: method.as_str().to_string(),
+            request_path: path.clone(),
+            request_host: header_str(&headers_snapshot, "host"),
+            status_code: status.as_u16() as i32,
+            upstream: target.clone(),
+            latency_ms: elapsed * 1000.0,
+            user_agent: header_str(&headers_snapshot, "user-agent"),
+            referer: header_str(&headers_snapshot, "referer"),
+        });
+
         let mut out = Response::new(Body::empty());
-        *out.status_mut() = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        *out.status_mut() =
+            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
 
         for (k, v) in resp.headers().iter() {
             if is_hop_header(k.as_str()) {
@@ -732,7 +976,11 @@ async fn proxy_handler(
         let bytes = match resp.bytes().await {
             Ok(b) => b,
             Err(e) => {
-                return (StatusCode::BAD_GATEWAY, format!("read upstream body failed: {e}")).into_response();
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("read upstream body failed: {e}"),
+                )
+                    .into_response();
             }
         };
 
@@ -741,10 +989,18 @@ async fn proxy_handler(
     }
 
     // 既没有静态目录也没有上游，返回 404
-    (StatusCode::NOT_FOUND, "No static directory or upstream configured").into_response()
+    (
+        StatusCode::NOT_FOUND,
+        "No static directory or upstream configured",
+    )
+        .into_response()
 }
 
-fn build_upstream_url(upstream_base: &str, proxy_pass_path: Option<&str>, uri: &Uri) -> Result<String> {
+fn build_upstream_url(
+    upstream_base: &str,
+    proxy_pass_path: Option<&str>,
+    uri: &Uri,
+) -> Result<String> {
     let mut base = upstream_base.trim_end_matches('/').to_string();
     let mut path = uri.path().to_string();
 

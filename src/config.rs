@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
+use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use once_cell::sync::Lazy;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhitelistEntry {
@@ -121,8 +121,7 @@ pub fn load_config() -> Result<()> {
     let content = fs::read_to_string(&path)
         .with_context(|| format!("无法读取配置文件: {}", path.display()))?;
 
-    let mut config: Config = toml::from_str(&content)
-        .context("解析配置文件失败")?;
+    let mut config: Config = toml::from_str(&content).context("解析配置文件失败")?;
 
     // 确保所有 ID 都存在（加载时补齐，并写回内存）
     ensure_config_ids(&mut config);
@@ -134,10 +133,8 @@ pub fn load_config() -> Result<()> {
 pub fn save_config() -> Result<()> {
     let path = get_config_path();
     let config = CONFIG.read().clone();
-    let content = toml::to_string_pretty(&config)
-        .context("序列化配置失败")?;
-    fs::write(&path, content)
-        .with_context(|| format!("写入配置文件失败: {}", path.display()))?;
+    let content = toml::to_string_pretty(&config).context("序列化配置失败")?;
+    fs::write(&path, content).with_context(|| format!("写入配置文件失败: {}", path.display()))?;
     Ok(())
 }
 

@@ -67,6 +67,7 @@
       </el-table-column>
       <el-table-column prop="listenAddr" label="监听地址" width="120" sortable="custom" />
       <el-table-column prop="clientIP" label="客户端IP" width="130" sortable="custom" />
+      <el-table-column prop="remoteIP" label="RemoteIP" width="130" sortable="custom" />
       <el-table-column prop="method" label="方法" width="80" sortable="custom" />
       <el-table-column prop="requestPath" label="请求路径" min-width="200" show-overflow-tooltip sortable="custom" />
       <el-table-column prop="requestHost" label="Host" width="150" show-overflow-tooltip sortable="custom" />
@@ -77,7 +78,11 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="upstream" label="上游地址" width="200" show-overflow-tooltip sortable="custom" />
+      <el-table-column prop="upstream" label="上游地址" width="200" show-overflow-tooltip sortable="custom">
+        <template #default="{ row }">
+          {{ formatUpstreamHost(row.upstream) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="latencyMs" label="延迟(ms)" width="100" sortable="custom">
         <template #default="{ row }">
           {{ row.latencyMs.toFixed(2) }}
@@ -128,6 +133,7 @@ interface RequestLog {
   timestamp: number
   listenAddr: string
   clientIP: string
+  remoteIP: string
   method: string
   requestURL: string
   requestPath: string
@@ -269,6 +275,20 @@ const formatTime = (timestamp: number) => {
   })
 }
 
+// 从完整 URL 中提取域名（不包含协议和路径）
+const formatUpstreamHost = (upstream: string): string => {
+  if (!upstream) return ''
+  try {
+    // 处理没有协议的 URL（如直接是 "example.com:8080"）
+    const urlStr = upstream.includes('://') ? upstream : `http://${upstream}`
+    const url = new URL(urlStr)
+    return url.host || url.pathname.split('/')[0] || upstream
+  } catch (e) {
+    // 解析失败时返回原值
+    return upstream
+  }
+}
+
 const getStatusTagType = (statusCode: number) => {
   if (statusCode >= 200 && statusCode < 300) return 'success'
   if (statusCode >= 300 && statusCode < 400) return 'info'
@@ -296,21 +316,38 @@ const handleSearch = async () => {
 
     // @ts-ignore
     const response = await QueryRequestLogs({
-      startTime: startSec,
-      endTime: endSec,
-      listenAddr: searchForm.value.listenAddr || '',
+      start_time: startSec,
+      end_time: endSec,
+      listen_addr: searchForm.value.listenAddr || '',
       upstream: searchForm.value.upstream || '',
-      requestPath: searchForm.value.requestPath || '',
-      clientIP: searchForm.value.clientIP || '',
-      statusCode: searchForm.value.statusCode || 0,
+      request_path: searchForm.value.requestPath || '',
+      client_ip: searchForm.value.clientIP || '',
+      status_code: searchForm.value.statusCode || 0,
       page: pagination.value.page,
-      pageSize: pagination.value.pageSize,
+      page_size: pagination.value.pageSize,
     })
 
     if (response) {
-      logs.value = response.logs || []
+      const list = Array.isArray(response.logs) ? response.logs : []
+      logs.value = list.map((r: any) => ({
+        id: r.id,
+        timestamp: r.timestamp,
+        listenAddr: r.listen_addr ?? r.listenAddr,
+        clientIP: r.client_ip ?? r.clientIP,
+        remoteIP: r.remote_ip ?? r.remoteIP,
+        method: r.method,
+        requestURL: r.request_url ?? r.requestURL ?? '',
+        requestPath: r.request_path ?? r.requestPath,
+        requestHost: r.request_host ?? r.requestHost,
+        statusCode: r.status_code ?? r.statusCode,
+        upstream: r.upstream,
+        routeKey: r.route_key ?? r.routeKey ?? '',
+        latencyMs: r.latency_ms ?? r.latencyMs,
+        userAgent: r.user_agent ?? r.userAgent,
+        referer: r.referer,
+      }))
       pagination.value.total = response.total || 0
-      pagination.value.totalPage = response.totalPage || 0
+      pagination.value.totalPage = response.total_page ?? response.totalPage ?? 0
       ElMessage.success(`查询成功，共 ${response.total} 条记录`)
     } else {
       logs.value = []

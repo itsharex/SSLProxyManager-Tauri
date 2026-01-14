@@ -5,15 +5,16 @@ use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use sqlx::ConnectOptions;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 static DB_POOL: Lazy<RwLock<Option<Arc<SqlitePool>>>> = Lazy::new(|| RwLock::new(None));
 static DB_PATH: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(String::new()));
 static DB_ERROR: Lazy<RwLock<Option<String>>> = Lazy::new(|| RwLock::new(None));
 
-static BLACKLIST_CACHE: Lazy<RwLock<HashMap<String, i64>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static BLACKLIST_CACHE: Lazy<RwLock<HashMap<String, i64>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
 static BLACKLIST_LAST_CLEANUP: Lazy<RwLock<Instant>> = Lazy::new(|| RwLock::new(Instant::now()));
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -53,14 +54,19 @@ pub struct QueryRequestLogsRequest {
     pub start_time: i64,
     pub end_time: i64,
     pub listen_addr: Option<String>,
-    pub limit: i32,
-    pub offset: i32,
+    pub upstream: Option<String>,
+    pub request_path: Option<String>,
+    pub client_ip: Option<String>,
+    pub status_code: Option<i32>,
+    pub page: i32,
+    pub page_size: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryRequestLogsResponse {
     pub logs: Vec<RequestLog>,
     pub total: i64,
+    pub total_page: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -68,13 +74,33 @@ pub struct RequestLog {
     pub id: i64,
     pub timestamp: i64,
     pub listen_addr: String,
-    pub method: String,
-    pub path: String,
-    pub status: i32,
-    pub latency_ms: f64,
     pub client_ip: String,
+    pub remote_ip: String,
+    pub method: String,
+    pub request_path: String,
+    pub request_host: String,
+    pub status_code: i32,
+    pub upstream: String,
+    pub latency_ms: f64,
+    pub user_agent: String,
+    pub referer: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct RequestLogInsert {
+    pub timestamp: i64,
+    pub listen_addr: String,
+    pub client_ip: String,
+    pub remote_ip: String,
+    pub method: String,
+    pub request_path: String,
+    pub request_host: String,
+    pub status_code: i32,
+    pub upstream: String,
+    pub latency_ms: f64,
+    pub user_agent: String,
+    pub referer: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsSeries {
     pub timestamps: Vec<i64>,
@@ -198,6 +224,19 @@ pub async fn init_db(db_path: String) -> Result<()> {
             .await
             .with_context(|| format!("连接数据库失败: {}", path.display()))?;
 
+        // 检查表结构是否需要更新（通过检查新字段是否存在）
+        let needs_recreation = sqlx::query("SELECT remote_ip FROM request_logs LIMIT 1")
+            .fetch_one(&pool)
+            .await
+            .is_err();
+
+        if needs_recreation {
+            sqlx::query("DROP TABLE IF EXISTS request_logs")
+                .execute(&pool)
+                .await
+                .context("删除旧 request_logs 表失败")?;
+        }
+
         // 建表：请求日志
         sqlx::query(
             r#"
@@ -205,11 +244,16 @@ pub async fn init_db(db_path: String) -> Result<()> {
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               timestamp INTEGER NOT NULL,
               listen_addr TEXT NOT NULL,
+              client_ip TEXT NOT NULL,
+              remote_ip TEXT NOT NULL,
               method TEXT NOT NULL,
-              path TEXT NOT NULL,
-              status INTEGER NOT NULL,
+              request_path TEXT NOT NULL,
+              request_host TEXT NOT NULL,
+              status_code INTEGER NOT NULL,
+              upstream TEXT NOT NULL,
               latency_ms REAL NOT NULL,
-              client_ip TEXT NOT NULL
+              user_agent TEXT NOT NULL,
+              referer TEXT NOT NULL
             );
             "#,
         )
@@ -291,79 +335,235 @@ pub fn get_metrics() -> MetricsPayload {
 
 pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetricsResponse> {
     // 查询历史指标数据
-    Ok(QueryMetricsResponse {
-        data: vec![],
-    })
+    Ok(QueryMetricsResponse { data: vec![] })
 }
 
 pub async fn query_request_logs(req: QueryRequestLogsRequest) -> Result<QueryRequestLogsResponse> {
     let Some(pool) = pool() else {
-        return Ok(QueryRequestLogsResponse { logs: vec![], total: 0 });
+        return Ok(QueryRequestLogsResponse {
+            logs: vec![],
+            total: 0,
+            total_page: 0,
+        });
     };
 
-    let limit = req.limit.clamp(1, 500) as i64;
-    let offset = req.offset.max(0) as i64;
+    let page_size = req.page_size.clamp(1, 200) as i64;
+    let page = req.page.max(1) as i64;
+    let offset = (page - 1) * page_size;
 
-    let total: i64 = if let Some(listen_addr) = req.listen_addr.as_ref().filter(|s| !s.trim().is_empty()) {
-            let row: (i64,) = sqlx::query_as(
-                r#"SELECT COUNT(1) as cnt FROM request_logs WHERE timestamp>=? AND timestamp<=? AND listen_addr=?"#,
-            )
-            .bind(req.start_time)
-            .bind(req.end_time)
-            .bind(listen_addr)
-            .fetch_one(&*pool)
-            .await?;
-            row.0
-        } else {
-            let row: (i64,) = sqlx::query_as(
-                r#"SELECT COUNT(1) as cnt FROM request_logs WHERE timestamp>=? AND timestamp<=?"#,
-            )
-            .bind(req.start_time)
-            .bind(req.end_time)
-            .fetch_one(&*pool)
-            .await?;
-            row.0
-        };
+    // 组装过滤条件
+    let listen_addr = req
+        .listen_addr
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let upstream = req
+        .upstream
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let request_path = req
+        .request_path
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let client_ip = req
+        .client_ip
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let status_code = req.status_code.filter(|c| *c > 0);
 
-            let logs: Vec<RequestLog> = if let Some(listen_addr) = req.listen_addr.as_ref().filter(|s| !s.trim().is_empty()) {
-            sqlx::query_as::<_, RequestLog>(
-                r#"
-                SELECT id, timestamp, listen_addr, method, path, status, latency_ms, client_ip
-                FROM request_logs
-                WHERE timestamp>=? AND timestamp<=? AND listen_addr=?
-                ORDER BY timestamp DESC
-                LIMIT ? OFFSET ?
-                "#,
-            )
-            .bind(req.start_time)
-            .bind(req.end_time)
-            .bind(listen_addr)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&*pool)
-            .await?
-        } else {
-            sqlx::query_as::<_, RequestLog>(
-                r#"
-                SELECT id, timestamp, listen_addr, method, path, status, latency_ms, client_ip
-                FROM request_logs
-                WHERE timestamp>=? AND timestamp<=?
-                ORDER BY timestamp DESC
-                LIMIT ? OFFSET ?
-                "#,
-            )
-            .bind(req.start_time)
-            .bind(req.end_time)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&*pool)
-            .await?
-        };
+    // COUNT
+    let mut count_sql =
+        String::from("SELECT COUNT(1) FROM request_logs WHERE timestamp>=? AND timestamp<=?");
+    if listen_addr.is_some() {
+        count_sql.push_str(" AND listen_addr=?");
+    }
+    if let Some(_) = upstream {
+        count_sql.push_str(" AND upstream LIKE ?");
+    }
+    if let Some(_) = request_path {
+        count_sql.push_str(" AND request_path LIKE ?");
+    }
+    if let Some(_) = client_ip {
+        count_sql.push_str(" AND client_ip LIKE ?");
+    }
+    if status_code.is_some() {
+        count_sql.push_str(" AND status_code=?");
+    }
 
-            Ok(QueryRequestLogsResponse { logs, total })
+    let mut q = sqlx::query_as::<_, (i64,)>(&count_sql)
+        .bind(req.start_time)
+        .bind(req.end_time);
+    if let Some(v) = listen_addr {
+        q = q.bind(v);
+    }
+    if let Some(v) = upstream {
+        q = q.bind(format!("%{}%", v));
+    }
+    if let Some(v) = request_path {
+        q = q.bind(format!("%{}%", v));
+    }
+    if let Some(v) = client_ip {
+        q = q.bind(format!("%{}%", v));
+    }
+    if let Some(v) = status_code {
+        q = q.bind(v);
+    }
+
+    let total = q.fetch_one(&*pool).await?.0;
+    let total_page = if total == 0 {
+        0
+    } else {
+        (total + page_size - 1) / page_size
+    };
+
+    // SELECT
+    let mut select_sql = String::from(
+        "SELECT id, timestamp, listen_addr, client_ip, remote_ip, method, request_path, request_host, status_code, upstream, latency_ms, user_agent, referer\n         FROM request_logs\n         WHERE timestamp>=? AND timestamp<=?",
+    );
+    if listen_addr.is_some() {
+        select_sql.push_str(" AND listen_addr=?");
+    }
+    if upstream.is_some() {
+        select_sql.push_str(" AND upstream LIKE ?");
+    }
+    if request_path.is_some() {
+        select_sql.push_str(" AND request_path LIKE ?");
+    }
+    if client_ip.is_some() {
+        select_sql.push_str(" AND client_ip LIKE ?");
+    }
+    if status_code.is_some() {
+        select_sql.push_str(" AND status_code=?");
+    }
+    select_sql.push_str(" ORDER BY timestamp DESC LIMIT ? OFFSET ?");
+
+    let mut q = sqlx::query_as::<_, RequestLog>(&select_sql)
+        .bind(req.start_time)
+        .bind(req.end_time);
+    if let Some(v) = listen_addr {
+        q = q.bind(v);
+    }
+    if let Some(v) = upstream {
+        q = q.bind(format!("%{}%", v));
+    }
+    if let Some(v) = request_path {
+        q = q.bind(format!("%{}%", v));
+    }
+    if let Some(v) = client_ip {
+        q = q.bind(format!("%{}%", v));
+    }
+    if let Some(v) = status_code {
+        q = q.bind(v);
+    }
+
+    let logs = q.bind(page_size).bind(offset).fetch_all(&*pool).await?;
+
+    Ok(QueryRequestLogsResponse {
+        logs,
+        total,
+        total_page,
+    })
 }
 
-pub async fn add_blacklist_entry(ip: String, reason: String, duration_seconds: i32) -> Result<BlacklistEntry> {
+pub fn try_enqueue_request_log(log: RequestLogInsert) {
+    let Some(tx) = REQUEST_LOG_TX.read().clone() else {
+        return;
+    };
+    // 满了就丢弃，避免反压影响代理性能
+    let _ = tx.try_send(log);
+}
+
+pub async fn init_request_log_writer() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<RequestLogInsert>(50_000);
+    *REQUEST_LOG_TX.write() = Some(tx);
+
+    tauri::async_runtime::spawn(async move {
+        let mut buf: Vec<RequestLogInsert> = Vec::with_capacity(256);
+        let mut ticker = tokio::time::interval(Duration::from_millis(500));
+
+        loop {
+            tokio::select! {
+                _ = ticker.tick() => {
+                    flush_request_logs(&mut buf).await;
+                }
+                item = rx.recv() => {
+                    match item {
+                        None => {
+                            // sender 全部 drop，flush 后退出
+                            flush_request_logs(&mut buf).await;
+                            break;
+                        }
+                        Some(v) => {
+                            buf.push(v);
+                            if buf.len() >= 200 {
+                                flush_request_logs(&mut buf).await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+static REQUEST_LOG_TX: Lazy<RwLock<Option<tokio::sync::mpsc::Sender<RequestLogInsert>>>> =
+    Lazy::new(|| RwLock::new(None));
+
+async fn flush_request_logs(buf: &mut Vec<RequestLogInsert>) {
+    if buf.is_empty() {
+        return;
+    }
+
+    let Some(pool) = pool() else {
+        buf.clear();
+        return;
+    };
+
+    // 批量写入
+    let mut tx = match pool.begin().await {
+        Ok(t) => t,
+        Err(_) => {
+            buf.clear();
+            return;
+        }
+    };
+
+    for row in buf.drain(..) {
+        let _ = sqlx::query(
+            r#"
+            INSERT INTO request_logs (
+              timestamp, listen_addr, client_ip, remote_ip, method, request_path, request_host,
+              status_code, upstream, latency_ms, user_agent, referer
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(row.timestamp)
+        .bind(row.listen_addr)
+        .bind(row.client_ip)
+        .bind(row.remote_ip)
+        .bind(row.method)
+        .bind(row.request_path)
+        .bind(row.request_host)
+        .bind(row.status_code)
+        .bind(row.upstream)
+        .bind(row.latency_ms)
+        .bind(row.user_agent)
+        .bind(row.referer)
+        .execute(&mut *tx)
+        .await;
+    }
+
+    let _ = tx.commit().await;
+}
+
+pub async fn add_blacklist_entry(
+    ip: String,
+    reason: String,
+    duration_seconds: i32,
+) -> Result<BlacklistEntry> {
     let Some(pool) = pool() else {
         return Err(anyhow!("数据库未初始化"));
     };
@@ -387,7 +587,11 @@ pub async fn add_blacklist_entry(ip: String, reason: String, duration_seconds: i
         "#,
     )
     .bind(&ip_key)
-    .bind(if reason.trim().is_empty() { None::<String> } else { Some(reason.clone()) })
+    .bind(if reason.trim().is_empty() {
+        None::<String>
+    } else {
+        Some(reason.clone())
+    })
     .bind(expires_at)
     .bind(now)
     .execute(&*pool)
@@ -401,7 +605,11 @@ pub async fn add_blacklist_entry(ip: String, reason: String, duration_seconds: i
     Ok(BlacklistEntry {
         id,
         ip: ip_key,
-        reason: if reason.trim().is_empty() { None } else { Some(reason) },
+        reason: if reason.trim().is_empty() {
+            None
+        } else {
+            Some(reason)
+        },
         expires_at,
         created_at: now,
     })
@@ -502,7 +710,11 @@ pub fn get_metrics_db_status() -> MetricsDBStatus {
                 let writable = if exists {
                     // 以创建临时文件的方式判断可写
                     let test = dir.join(".writable_test");
-                    match std::fs::OpenOptions::new().create(true).write(true).open(&test) {
+                    match std::fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .open(&test)
+                    {
                         Ok(_) => {
                             let _ = std::fs::remove_file(&test);
                             true
@@ -546,7 +758,8 @@ pub fn get_metrics_db_status() -> MetricsDBStatus {
     }
 
     if enabled && !initialized && error.is_none() {
-        message = Some("已启用持久化，但数据库尚未初始化；请保存配置或重启服务触发初始化".to_string());
+        message =
+            Some("已启用持久化，但数据库尚未初始化；请保存配置或重启服务触发初始化".to_string());
     }
 
     MetricsDBStatus {

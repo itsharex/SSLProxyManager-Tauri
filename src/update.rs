@@ -1,8 +1,8 @@
 use crate::config;
 use anyhow::{Context, Result};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use semver::Version;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,8 +47,7 @@ pub async fn check_for_updates(
         .build()
         .context("创建 HTTP 客户端失败")?;
 
-    let mut url = reqwest::Url::parse(&cfg.server_url)
-        .context("解析服务器 URL 失败")?;
+    let mut url = reqwest::Url::parse(&cfg.server_url).context("解析服务器 URL 失败")?;
 
     url.query_pairs_mut()
         .append_pair("v", current_version)
@@ -69,13 +68,9 @@ pub async fn check_for_updates(
         ));
     }
 
-    let update_info: UpdateInfo = response
-        .json()
-        .await
-        .context("解析更新信息失败")?;
+    let update_info: UpdateInfo = response.json().await.context("解析更新信息失败")?;
 
-    let latest_version = Version::parse(&update_info.latest_version)
-        .context("无效的最新版本号")?;
+    let latest_version = Version::parse(&update_info.latest_version).context("无效的最新版本号")?;
 
     let is_prerelease = !latest_version.pre.is_empty();
 
@@ -93,8 +88,7 @@ pub async fn check_for_updates(
     let has_update = if current_version == "dev" {
         true
     } else {
-        let current = Version::parse(current_version)
-            .context("无效的当前版本号")?;
+        let current = Version::parse(current_version).context("无效的当前版本号")?;
         latest_version > current
     };
 

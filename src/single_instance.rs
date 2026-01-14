@@ -12,7 +12,7 @@ impl SingleInstance {
             _instance: instance,
         })
     }
-    
+
     pub fn is_single(&self) -> bool {
         true
     }
