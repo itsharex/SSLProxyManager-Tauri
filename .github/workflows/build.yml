@@ -1,4 +1,4 @@
-name: Build (Windows + macOS)
+name: Build (Windows + Linux + macOS)
 
 on:
   push:
@@ -6,19 +6,26 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  publish-tauri:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
-            name: windows
           - platform: macos-latest
-            name: macos
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -32,26 +39,38 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      # 安装根目录依赖（主要是 @tauri-apps/cli）
       - name: Install root deps
         run: npm ci
 
-      # 安装前端依赖（vite 在 frontend/package.json 里）
       - name: Install frontend deps
         run: npm ci
         working-directory: frontend
 
-      - name: Build Tauri
-        run: npm run tauri:build
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          name: SSLProxyManager-${{ matrix.name }}
-          path: |
-            target/release/bundle/**
-            target/**/release/bundle/**
-          if-no-files-found: error
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Build and draft release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: npm run tauri
+          tagName: v__VERSION__
+          releaseName: "SSLProxyManager v__VERSION__"
+          releaseBody: "See the assets to download this version and install."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
