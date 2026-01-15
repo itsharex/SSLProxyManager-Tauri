@@ -1,4 +1,4 @@
-// Tauri API 适配层，用于替代 Wails API
+// Tauri API 适配层
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-shell';
@@ -52,6 +52,10 @@ export async function ClearLogs() {
 // 指标相关
 export async function GetMetrics() {
   return await invoke('get_metrics');
+}
+
+export async function GetListenAddrs() {
+  return await invoke('get_listen_addrs');
 }
 
 export async function QueryHistoricalMetrics(req: any) {

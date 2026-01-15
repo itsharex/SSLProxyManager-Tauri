@@ -96,6 +96,13 @@ pub fn get_metrics() -> Result<metrics::MetricsPayload, String> {
 }
 
 #[tauri::command]
+pub async fn get_listen_addrs() -> Result<Vec<String>, String> {
+    metrics::get_distinct_listen_addrs()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn query_historical_metrics(
     req: metrics::QueryMetricsRequest,
 ) -> Result<metrics::QueryMetricsResponse, String> {

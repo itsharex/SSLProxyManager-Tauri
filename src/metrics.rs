@@ -754,6 +754,22 @@ pub fn get_metrics() -> MetricsPayload {
     }
 }
 
+pub async fn get_distinct_listen_addrs() -> Result<Vec<String>> {
+    let Some(pool) = pool() else {
+        return Ok(vec![]);
+    };
+
+    // DISTINCT + 排序；过滤空字符串/空白
+    let rows = sqlx::query_as::<_, (String,)>(
+        "SELECT DISTINCT listen_addr FROM request_logs WHERE trim(listen_addr) != '' ORDER BY listen_addr ASC",
+    )
+    .fetch_all(&*pool)
+    .await
+    .context("查询 request_logs.listen_addr distinct 失败")?;
+
+    Ok(rows.into_iter().map(|(s,)| s).collect())
+}
+
 pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetricsResponse> {
     let Some(pool) = pool() else {
         return Ok(QueryMetricsResponse {
@@ -893,8 +909,13 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
         "#,
     );
 
+    // 注意：这里的 up_sql 使用了子查询 `FROM (...) AS t`，外层没有 WHERE。
+    // 过滤条件必须加到子查询内部的 WHERE 中，否则会拼出 `) AS t AND ...` 导致 SQL 语法错误。
     if listen_addr.is_some() {
-        up_sql.push_str(" AND listen_addr=?");
+        up_sql = up_sql.replace(
+            "WHERE timestamp >= ? AND timestamp <= ?",
+            "WHERE timestamp >= ? AND timestamp <= ? AND listen_addr=?",
+        );
     }
     up_sql.push_str(" GROUP BY k ORDER BY c DESC LIMIT 20");
 

@@ -180,14 +180,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElConfigProvider } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import { EventsOn, EventsOff } from '../api'
-import { GetMetrics, QueryHistoricalMetrics } from '../api'
+import { GetListenAddrs, GetMetrics, QueryHistoricalMetrics } from '../api'
 import type { EChartsOption } from 'echarts'
 
 const props = defineProps<{ isActive: boolean }>()
 
 type KV = { key: string; value: number }
 
-// 临时类型定义（替代 Wails 生成的类型）
+// 临时类型定义
 type MetricsSeries = {
   timestamps: number[]
   counts: number[]
@@ -580,7 +580,7 @@ const loadHistoricalData = async () => {
       dateRange: dateRange.value
     })
     
-    // @ts-ignore - Wails 自动生成的文件，类型可能未及时更新
+    // @ts-ignore
     const response = await QueryHistoricalMetrics({
       start_time: startSec,
       end_time: endSec,
@@ -590,7 +590,6 @@ const loadHistoricalData = async () => {
     console.log('查询结果:', response)
 
     if (response && response.series) {
-      // 转换 Wails 类型到组件使用的类型
       const series: MetricsSeries = {
         timestamps: response.series.timestamps || [],
         counts: response.series.counts || [],
@@ -1152,11 +1151,10 @@ const processMetricsPayload = (payload: MetricsPayload) => {
   lastEventTime = Date.now()
   eventReceived = true
 
-  if (Array.isArray(payload.listenAddrs) && payload.listenAddrs.length > 0) {
-    listenAddrs.value = payload.listenAddrs
-    if (!listenAddrs.value.includes(selectedListen.value)) {
-      selectedListen.value = listenAddrs.value[0]
-    }
+  // 监听地址列表改为从数据库 request_logs DISTINCT 动态读取（见 GetListenAddrs），不再依赖实时 payload
+  // 这里仅保留 selectedListen 合法性兜底：如果当前选择不在列表里，回退到“全局”
+  if (selectedListen.value !== '全局' && !listenAddrs.value.includes(selectedListen.value)) {
+    selectedListen.value = '全局'
   }
 
   // 1小时及以上（>= 3600秒）使用分钟级数据
@@ -1185,7 +1183,6 @@ const startPolling = () => {
     
     try {
       const payload = await GetMetrics()
-      // 转换 Wails 生成的类型到组件使用的类型
       const converted: MetricsPayload = {
         windowSeconds: payload.windowSeconds,
         listenAddrs: payload.listenAddrs || [],
@@ -1277,8 +1274,30 @@ watch([selectedListen, selectedWindow], () => {
   // vue-echarts 会自动响应数据变化
 })
 
+const refreshListenAddrs = async () => {
+  try {
+    const addrs = await GetListenAddrs()
+    // 保留“全局”作为首项
+    const list = ['全局', ...(Array.isArray(addrs) ? addrs : [])]
+    // 去重（防止后端也返回了“全局”或重复）
+    const uniq = Array.from(new Set(list))
+    listenAddrs.value = uniq
+
+    if (!listenAddrs.value.includes(selectedListen.value)) {
+      selectedListen.value = '全局'
+    }
+  } catch (err) {
+    console.error('获取监听地址列表失败:', err)
+    // 失败时至少保证有“全局”
+    listenAddrs.value = ['全局']
+    selectedListen.value = '全局'
+  }
+}
+
 watch(() => props.isActive, (active) => {
   if (active) {
+    refreshListenAddrs()
+
     // 初始化时同时尝试事件订阅和轮询（事件优先）
     if (!subscribed) {
       try {

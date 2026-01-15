@@ -50,6 +50,7 @@ fn main() {
             commands::get_logs,
             commands::clear_logs,
             commands::get_metrics,
+            commands::get_listen_addrs,
             commands::query_historical_metrics,
             commands::query_request_logs,
             commands::add_blacklist_entry,

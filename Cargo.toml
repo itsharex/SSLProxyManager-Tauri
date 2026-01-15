@@ -2,9 +2,9 @@
 name = "SSLProxyManager"
 version = "1.0.3"
 description = "SSL 代理管理工具"
+repository = "https://github.com/userfhy/SSLProxyManager-Tauri"
 authors = ["fhy"]
-license = ""
-repository = ""
+license = "MIT"
 edition = "2021"
 
 [build-dependencies]
