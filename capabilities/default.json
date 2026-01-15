@@ -9,6 +9,10 @@
     "core:default",
     "dialog:default",
     "shell:default",
+    "autostart:default",
+    "autostart:allow-is-enabled",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
     {
       "identifier": "core:event:default",
       "allow": [

@@ -25,12 +25,7 @@
     "security": {
       "csp": null
     },
-    "trayIcon": {
-      "iconPath": "icon/trayicon_64.png",
-      "iconAsTemplate": true,
-      "menuOnLeftClick": false,
-      "tooltip": "SSL 代理管理工具"
-    }
+    "trayIcon": null
   },
   "bundle": {
     "active": true,

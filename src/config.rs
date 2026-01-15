@@ -80,6 +80,10 @@ pub struct Config {
     pub rules: Vec<ListenRule>,
     pub allow_all_lan: bool,
     pub whitelist: Vec<WhitelistEntry>,
+
+    #[serde(default)]
+    pub auto_start: bool,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_storage: Option<MetricsStorage>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,6 +95,7 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
         rules: vec![],
         allow_all_lan: true,
         whitelist: vec![],
+        auto_start: false,
         metrics_storage: None,
         update: None,
     })
@@ -101,6 +106,7 @@ fn default_config() -> Config {
         rules: vec![],
         allow_all_lan: true,
         whitelist: vec![],
+        auto_start: false,
         metrics_storage: None,
         update: None,
     }

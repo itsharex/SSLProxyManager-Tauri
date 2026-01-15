@@ -272,20 +272,8 @@ interface ListenRule {
   Routes: Route[]
 }
 
-interface Config {
-  Rules?: ListenRule[]
-
-  ListenAddr?: string
-  SSLEnable?: boolean
-  CertFile?: string
-  KeyFile?: string
-  Upstreams?: Upstream[]
-  Upstream?: string
-}
-
-const cfg = ref<Config>({
-  Rules: [],
-})
+// Tauri 后端返回的文件选择结果可能是 string | null
+// 这里兼容 ElementPlus v-model 以及 OpenDirectoryDialog 返回类型
 
 const rules = ref<ListenRule[]>([
   {
@@ -301,7 +289,7 @@ const rules = ref<ListenRule[]>([
         Host: '',
         Path: '/',
         ProxyPassPath: '',
-        SetHeaders: {},
+        SetHeaders: {} as Record<string, string>,
         SetHeadersList: [],
         StaticDir: '',
         ExcludeBasicAuth: false,
@@ -348,7 +336,7 @@ onMounted(async () => {
           Host: '',
           Path: '/',
           ProxyPassPath: '',
-          SetHeaders: {},
+          SetHeaders: {} as Record<string, string>,
           SetHeadersList: [],
           StaticDir: '',
           ExcludeBasicAuth: false,
@@ -372,7 +360,7 @@ onMounted(async () => {
             Host: '',
             Path: '/',
             ProxyPassPath: '',
-            SetHeaders: {},
+            SetHeaders: {} as Record<string, string>,
             SetHeadersList: [],
             StaticDir: '',
             ExcludeBasicAuth: false,
@@ -400,7 +388,7 @@ const addRule = () => {
         Host: '',
         Path: '/',
         ProxyPassPath: '',
-        SetHeaders: {},
+        SetHeaders: {} as Record<string, string>,
         SetHeadersList: [],
         StaticDir: '',
         ExcludeBasicAuth: false,
@@ -467,7 +455,7 @@ const addRoute = (ruleIndex: number) => {
     Host: '',
     Path: '/',
     ProxyPassPath: '',
-    SetHeaders: {},
+    SetHeaders: {} as Record<string, string>,
     SetHeadersList: [],
     StaticDir: '',
     ExcludeBasicAuth: false,
@@ -486,7 +474,7 @@ const selectCertFile = async (ruleIndex: number) => {
   try {
     const filePath = await OpenCertFileDialog()
     if (filePath) {
-      rules.value[ruleIndex].CertFile = filePath
+      rules.value[ruleIndex].CertFile = String(filePath)
     }
   } catch (error: any) {
     ElMessage.error(`选择证书文件失败: ${error.message || error}`)
@@ -497,7 +485,7 @@ const selectKeyFile = async (ruleIndex: number) => {
   try {
     const filePath = await OpenKeyFileDialog()
     if (filePath) {
-      rules.value[ruleIndex].KeyFile = filePath
+      rules.value[ruleIndex].KeyFile = String(filePath)
     }
   } catch (error: any) {
     ElMessage.error(`选择私钥文件失败: ${error.message || error}`)
@@ -508,7 +496,7 @@ const selectDirectory = async (ruleIndex: number, routeIndex: number) => {
   try {
     const dirPath = await OpenDirectoryDialog()
     if (dirPath) {
-      rules.value[ruleIndex].Routes[routeIndex].StaticDir = dirPath
+      rules.value[ruleIndex].Routes[routeIndex].StaticDir = String(dirPath)
     }
   } catch (error: any) {
     ElMessage.error(`选择目录失败: ${error.message || error}`)

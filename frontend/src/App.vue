@@ -79,7 +79,7 @@
           <el-menu-item-group :title="isCollapsed ? '' : '配置管理'">
             <el-menu-item index="config">
               <el-icon><Setting /></el-icon>
-              <template #title>基础配置</template>
+              <template #title>代理配置</template>
             </el-menu-item>
             <el-menu-item index="access">
               <el-icon><Lock /></el-icon>
@@ -88,6 +88,10 @@
             <el-menu-item index="storage">
               <el-icon><Document /></el-icon>
               <template #title>数据持久化</template>
+            </el-menu-item>
+            <el-menu-item index="base">
+              <el-icon><Setting /></el-icon>
+              <template #title>基础配置</template>
             </el-menu-item>
           </el-menu-item-group>
 
@@ -123,6 +127,7 @@
 
       <!-- 内容区域 -->
       <div class="content-area">
+        <BaseConfig v-show="activeTab === 'base'" ref="baseConfigRef" />
         <ConfigCard 
           v-show="activeTab === 'config'" 
           ref="configCardRef"
@@ -149,7 +154,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { StartServer, StopServer, GetStatus, QuitApp, OpenURL, EventsOn } from './api'
+import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import TitleBar from './components/TitleBar.vue'
+import BaseConfig from './components/BaseConfig.vue'
 import ConfigCard from './components/ConfigCard.vue'
 import LogViewer from './components/LogViewer.vue'
 import Dashboard from './components/Dashboard.vue'
@@ -161,10 +168,11 @@ import { Setting, DataAnalysis, Document, Sunny, Moon, Lock, Check, Search, Fold
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { GetConfig, SaveConfig } from './api'
 
-const activeTab = ref<'config' | 'logs' | 'dashboard' | 'access' | 'storage' | 'requestLogs' | 'about'>('config')
+const activeTab = ref<'base' | 'config' | 'logs' | 'dashboard' | 'access' | 'storage' | 'requestLogs' | 'about'>('config')
 const status = ref('stopped')
 const starting = ref(false)
 const saving = ref(false)
+const baseConfigRef = ref<InstanceType<typeof BaseConfig> | null>(null)
 const configCardRef = ref<InstanceType<typeof ConfigCard> | null>(null)
 const accessControlRef = ref<InstanceType<typeof AccessControl> | null>(null)
 const metricsStorageRef = ref<InstanceType<typeof MetricsStorage> | null>(null)
@@ -423,6 +431,15 @@ const handleSaveConfig = async () => {
         throw new Error('ConfigCard 组件未加载')
       }
       configCardConfig = configCardRef.value.getConfig() || {}
+
+      // 从 BaseConfig 获取配置（基础配置）
+      if (baseConfigRef.value) {
+        const baseCfg = baseConfigRef.value.getConfig() || {}
+        configCardConfig = {
+          ...baseCfg,
+          ...configCardConfig,
+        }
+      }
     } catch (e: any) {
       ElMessage.error(`配置验证失败: ${e?.message || String(e)}`)
       saving.value = false
@@ -486,6 +503,19 @@ const handleSaveConfig = async () => {
     
     ElMessage.info('配置保存后将自动重启服务...')
     const savedCfg = await SaveConfig(finalConfig)
+
+    // 同步开机自启（由前端插件执行；后端只负责持久化 auto_start 到 config.toml）
+    try {
+      const wantAutoStart = !!finalConfig.auto_start
+      const enabled = await isAutostartEnabled()
+      if (wantAutoStart && !enabled) {
+        await enableAutostart()
+      } else if (!wantAutoStart && enabled) {
+        await disableAutostart()
+      }
+    } catch (e: any) {
+      ElMessage.warning(`开机自启设置失败: ${e?.message || String(e)}`)
+    }
 
     // 保存成功后，用后端返回的最终配置（包含补齐后的 id）刷新本地缓存，
     // 避免下次保存时丢失 id 导致重新生成。
@@ -554,8 +584,8 @@ onMounted(async () => {
     currentTime.value = Date.now()
     startRuntimeTimer()
   }
-  await EventsOn('status', (s: string) => {
-    status.value = s
+  await EventsOn('status', (s: unknown) => {
+    status.value = s as string
     // 如果状态变为运行，开始计时
     if (s === 'running' && !startTime.value) {
       startTime.value = Date.now()

@@ -8,6 +8,7 @@ pub fn init(app: &AppHandle) -> Result<()> {
     // 初始化配置
     crate::config::load_config()?;
 
+
     // 初始化数据库（异步，避免在 runtime 内 block_on 导致崩溃）
     // 以及：启动请求日志异步写入 worker
     if let Some(metrics_storage) = crate::config::get_config().metrics_storage.as_ref() {

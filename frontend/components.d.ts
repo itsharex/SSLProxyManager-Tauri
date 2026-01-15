@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     About: typeof import('./src/components/About.vue')['default']
     AccessControl: typeof import('./src/components/AccessControl.vue')['default']
+    BaseConfig: typeof import('./src/components/BaseConfig.vue')['default']
     BlacklistManager: typeof import('./src/components/BlacklistManager.vue')['default']
     ConfigCard: typeof import('./src/components/ConfigCard.vue')['default']
     Dashboard: typeof import('./src/components/Dashboard.vue')['default']
