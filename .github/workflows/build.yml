@@ -6,26 +6,27 @@ on:
       - "v*"
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  publish-tauri:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: "--target aarch64-apple-darwin"
-          - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-          - platform: ubuntu-22.04
-            args: ""
           - platform: windows-latest
-            args: ""
+            name: windows
+            rust_target: ""
+          - platform: ubuntu-22.04
+            name: linux
+            rust_target: ""
+          - platform: macos-latest
+            name: macos-arm64
+            rust_target: "aarch64-apple-darwin"
+          - platform: macos-latest
+            name: macos-x64
+            rust_target: "x86_64-apple-darwin"
 
     runs-on: ${{ matrix.platform }}
 
@@ -39,17 +40,10 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install root deps
-        run: npm ci
-
-      - name: Install frontend deps
-        run: npm ci
-        working-directory: frontend
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust_target }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -62,15 +56,26 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Build and draft release
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build Tauri (default target)
+        if: matrix.rust_target == ''
+        run: npm run tauri:build
+
+      - name: Build Tauri (macOS target)
+        if: matrix.rust_target != ''
+        run: npm run tauri:build -- --target ${{ matrix.rust_target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tauriScript: npm run tauri
-          tagName: v__VERSION__
-          releaseName: "SSLProxyManager v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+          name: SSLProxyManager-${{ matrix.name }}
+          path: |
+            target/**/release/bundle/**
+            target/release/bundle/**
+          if-no-files-found: error
