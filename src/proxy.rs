@@ -1,7 +1,7 @@
 use crate::{config, metrics};
 use anyhow::{anyhow, Context, Result};
 use axum::{
-    body::{to_bytes, Body},
+    body::Body,
     extract::{connect_info::ConnectInfo, FromRef, State},
     http::{HeaderMap, HeaderValue, Method, Request, StatusCode, Uri},
     response::{IntoResponse, Response},
@@ -902,12 +902,6 @@ async fn proxy_handler(
             }
         };
 
-        send_log(format!(
-            "反代: {} {} -> {}",
-            req.method(),
-            req.uri(),
-            target
-        ));
 
         let target = target;
         let mut builder = client.request(req.method().clone(), target.clone());
@@ -924,16 +918,13 @@ async fn proxy_handler(
             builder = builder.header(axum::http::header::AUTHORIZATION, "");
         }
 
-        // 处理请求体
-        let body_bytes = match to_bytes(req.into_body(), usize::MAX).await {
-            Ok(b) => b,
-            Err(e) => {
-                return (StatusCode::BAD_GATEWAY, format!("read body failed: {e}")).into_response();
-            }
-        };
+        // 处理请求体：流式转发（避免把整个 body 读入内存）
+        // reqwest 的流式 body 构造需要启用 feature `stream`。
+        let body_stream = req.into_body().into_data_stream();
+        let req_body = reqwest::Body::wrap_stream(body_stream);
 
-        // 发送请求并返回响应（复用原先的 reqwest -> axum Response 转换逻辑）
-        let resp = match builder.body(body_bytes).send().await {
+        // 发送请求并返回响应（流式）
+        let resp = match builder.body(req_body).send().await {
             Ok(r) => r,
             Err(e) => {
                 return (
@@ -982,18 +973,21 @@ async fn proxy_handler(
             out.headers_mut().insert(k.clone(), v.clone());
         }
 
-        let bytes = match resp.bytes().await {
-            Ok(b) => b,
-            Err(e) => {
-                return (
-                    StatusCode::BAD_GATEWAY,
-                    format!("read upstream body failed: {e}"),
-                )
-                    .into_response();
-            }
-        };
+        // 响应体：流式返回（避免把整个响应读入内存）
+        let stream = resp.bytes_stream();
+        *out.body_mut() = Body::from_stream(stream);
 
-        *out.body_mut() = Body::from(bytes);
+        // 仅在错误时记录反代细节，降低高 QPS 下日志/锁开销
+        if !status.is_success() {
+            send_log(format!(
+                "反代错误: {} {} -> {} status={}",
+                method.as_str(),
+                uri,
+                target,
+                status.as_u16()
+            ));
+        }
+
         return out;
     }
 
