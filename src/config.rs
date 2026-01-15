@@ -96,28 +96,77 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
     })
 });
 
-fn get_config_path() -> PathBuf {
+fn default_config() -> Config {
+    Config {
+        rules: vec![],
+        allow_all_lan: true,
+        whitelist: vec![],
+        metrics_storage: None,
+        update: None,
+    }
+}
+
+fn get_config_path() -> Result<PathBuf> {
     // 开发模式优先读取当前工作目录下的 config.toml（便于调试时直接改项目根目录配置）
     #[cfg(debug_assertions)]
     {
         let cwd_cfg = PathBuf::from("config.toml");
         if cwd_cfg.exists() {
-            return cwd_cfg;
+            return Ok(cwd_cfg);
         }
     }
 
-    // 生产模式读取可执行文件同目录的 config.toml
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            return dir.join("config.toml");
-        }
+    // 生产模式：按平台选择默认配置位置
+
+    // Linux: ~/.config/SSLProxyManager/config.toml
+    #[cfg(target_os = "linux")]
+    {
+        let base = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+            .context("无法确定配置目录（缺少 XDG_CONFIG_HOME/HOME）")?;
+        return Ok(base.join("SSLProxyManager").join("config.toml"));
     }
 
-    PathBuf::from("config.toml")
+    // Windows: 可执行文件同目录的 config.toml（安装目录旁）
+    #[cfg(target_os = "windows")]
+    {
+        let exe = std::env::current_exe().context("无法获取当前可执行文件路径")?;
+        let dir = exe.parent().context("无法获取可执行文件目录")?;
+        return Ok(dir.join("config.toml"));
+    }
+
+    // macOS / 其它：暂时沿用可执行文件同目录
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    {
+        let exe = std::env::current_exe().context("无法获取当前可执行文件路径")?;
+        let dir = exe.parent().context("无法获取可执行文件目录")?;
+        return Ok(dir.join("config.toml"));
+    }
+}
+
+fn ensure_config_file_exists(path: &PathBuf) -> Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("创建配置目录失败: {}", parent.display()))?;
+    }
+
+    let cfg = default_config();
+    let content = toml::to_string_pretty(&cfg).context("序列化默认配置失败")?;
+    fs::write(path, content).with_context(|| format!("写入默认配置失败: {}", path.display()))?;
+    Ok(())
 }
 
 pub fn load_config() -> Result<()> {
-    let path = get_config_path();
+    let path = get_config_path()?;
+
+    // 如果不存在则自动生成
+    ensure_config_file_exists(&path)?;
+
     let content = fs::read_to_string(&path)
         .with_context(|| format!("无法读取配置文件: {}", path.display()))?;
 
@@ -131,7 +180,13 @@ pub fn load_config() -> Result<()> {
 }
 
 pub fn save_config() -> Result<()> {
-    let path = get_config_path();
+    let path = get_config_path()?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("创建配置目录失败: {}", parent.display()))?;
+    }
+
     let config = CONFIG.read().clone();
     let content = toml::to_string_pretty(&config).context("序列化配置失败")?;
     fs::write(&path, content).with_context(|| format!("写入配置文件失败: {}", path.display()))?;

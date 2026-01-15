@@ -15,9 +15,19 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     // 单实例检查
-    let instance = single_instance::SingleInstance::new("ssl-proxy-manager").unwrap();
+    // 目标：第二次启动时给用户明确提示“程序已运行”，然后退出。
+    let instance = single_instance::SingleInstance::new("SSLProxyManager")
+        .expect("failed to initialize single instance lock");
     if !instance.is_single() {
-        eprintln!("程序已启动，无法重复启动。");
+        // 第二实例不应该启动任何 tauri runtime（会影响已运行实例），这里改用 rfd 弹原生提示框。
+        // 如果 rfd 初始化失败则回退到 stderr。
+        let _ = rfd::MessageDialog::new()
+            .set_title("SSLProxyManager")
+            .set_description("程序已经运行，请勿重复启动。")
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+
+        eprintln!("程序已经运行，请勿重复启动。");
         std::process::exit(1);
     }
 
