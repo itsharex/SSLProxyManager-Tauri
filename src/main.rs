@@ -63,6 +63,7 @@ fn main() {
             commands::open_directory_dialog,
             commands::hide_to_tray,
             commands::quit_app,
+            commands::get_dashboard_stats,
         ])
         .setup(|app| {
             // 初始化应用

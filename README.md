@@ -17,6 +17,19 @@ SSLProxyManager 是一个基于 **Tauri 2 + Rust** 的 SSL 代理管理工具，
 - 后端：Rust（Tauri 2）
 - 前端：Vue 3、Vite、Element Plus、ECharts
 
+## 程序界面
+
+![ScreenShot1](./screenshots/1.jpg)
+
+![ScreenShot2](./screenshots/2.jpg)
+
+![ScreenShot3](./screenshots/3.jpg)
+
+![ScreenShot4](./screenshots/4.jpg)
+
+![ScreenShot5](./screenshots/5.jpg)
+
+
 ## 目录结构
 
 - `src/`：Rust 业务代码

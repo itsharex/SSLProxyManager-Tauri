@@ -105,6 +105,13 @@ pub fn query_historical_metrics(
 }
 
 #[tauri::command]
+pub async fn get_dashboard_stats(
+    req: metrics::DashboardStatsRequest,
+) -> Result<metrics::DashboardStatsResponse, String> {
+    metrics::get_dashboard_stats(req).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn query_request_logs(
     req: metrics::QueryRequestLogsRequest,
 ) -> Result<metrics::QueryRequestLogsResponse, String> {

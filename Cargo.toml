@@ -46,6 +46,7 @@ rustls-pemfile = "2.2.0"
 tower = "0.5.3"
 tower-http = { version = "0.6.8", features = ["fs"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
+url = "2.5.8"
 
 [features]
 # 默认启用所有功能

@@ -531,7 +531,7 @@ const avgLatency = computed(() => {
   }
   const raw = getRawWindowSeries()
   if (!raw || raw.avgLatencyMs.length === 0) return 0
-  return Math.round(sum(raw.avgLatencyMs) / raw.avgLatencyMs.length)
+  return Number((sum(raw.avgLatencyMs) / raw.avgLatencyMs.length).toFixed(4))
 })
 
 const topRouteErr = computed(() => {
@@ -583,10 +583,9 @@ const loadHistoricalData = async () => {
     
     // @ts-ignore - Wails 自动生成的文件，类型可能未及时更新
     const response = await QueryHistoricalMetrics({
-      startTime: startSec,
-      endTime: endSec,
-      listenAddr: listenAddr,
-      useMinute: useMinute,
+      start_time: startSec,
+      end_time: endSec,
+      listen_addr: listenAddr,
     })
     
     console.log('查询结果:', response)
