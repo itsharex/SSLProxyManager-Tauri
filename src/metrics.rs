@@ -363,18 +363,54 @@ pub async fn init_db(db_path: String) -> Result<()> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsDBStatus {
     pub enabled: bool,
-    pub db_path: String,
-    pub connected: bool,
+    pub initialized: bool,
+    pub path: String,
     pub error: Option<String>,
+    pub file_exists: bool,
+    pub dir_exists: bool,
+    pub dir_writable: bool,
+    pub message: Option<String>,
 }
 
 pub fn get_metrics_db_status() -> MetricsDBStatus {
-    let enabled = DB_POOL.read().is_some();
+    // enabled: 是否启用了持久化（即 DB 已初始化并可用于写入/查询）
+    let initialized = DB_POOL.read().is_some();
+    let path = DB_PATH.read().clone();
+
+    // 默认状态
+    let mut file_exists = false;
+    let mut dir_exists = false;
+    let mut dir_writable = false;
+    let mut message: Option<String> = None;
+
+    if !path.is_empty() {
+        let p = PathBuf::from(&path);
+        if let Some(dir) = p.parent() {
+            dir_exists = dir.exists();
+            // 尽量判断目录可写；如果目录不存在则为 false
+            dir_writable = dir_exists && std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(dir.join(".writable_check"))
+                .and_then(|_| std::fs::remove_file(dir.join(".writable_check")))
+                .is_ok();
+        }
+        file_exists = p.exists();
+
+        if initialized && !file_exists && dir_exists && dir_writable {
+            message = Some("数据库文件尚未创建，等待首次写入后生成".to_string());
+        }
+    }
+
     MetricsDBStatus {
-        enabled,
-        db_path: DB_PATH.read().clone(),
-        connected: enabled,
+        enabled: initialized,
+        initialized,
+        path,
         error: DB_ERROR.read().clone(),
+        file_exists,
+        dir_exists,
+        dir_writable,
+        message,
     }
 }
 
