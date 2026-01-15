@@ -17,7 +17,8 @@ import {
 import {
   GridComponent,
   TooltipComponent,
-  LegendComponent
+  LegendComponent,
+  GraphicComponent
 } from 'echarts/components'
 
 // 注册 ECharts 组件
@@ -28,7 +29,8 @@ use([
   PieChart,
   GridComponent,
   TooltipComponent,
-  LegendComponent
+  LegendComponent,
+  GraphicComponent
 ])
 
 const app = createApp(App)

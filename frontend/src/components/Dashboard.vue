@@ -81,35 +81,35 @@
         <template #header>
           <div class="panel-title">请求数趋势（QPS）</div>
         </template>
-        <v-chart :option="qpsOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="qpsOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
         <template #header>
           <div class="panel-title">状态码分布</div>
         </template>
-        <v-chart :option="statusOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="statusOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
         <template #header>
           <div class="panel-title">延迟趋势（ms）</div>
         </template>
-        <v-chart :option="latencyOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="latencyOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
         <template #header>
           <div class="panel-title">P95 / P99 延迟（ms）</div>
         </template>
-        <v-chart :option="pOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="pOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
         <template #header>
           <div class="panel-title">Upstream 请求分布（Top 20）</div>
         </template>
-        <v-chart :option="upDistOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="upDistOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
@@ -148,28 +148,28 @@
         <template #header>
           <div class="panel-title">错误率 / 成功率趋势</div>
         </template>
-        <v-chart :option="rateOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="rateOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
         <template #header>
           <div class="panel-title">状态码分布（饼图）</div>
         </template>
-        <v-chart :option="statusPieOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="statusPieOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
         <template #header>
           <div class="panel-title">吞吐量趋势（累计请求数）</div>
         </template>
-        <v-chart :option="throughputOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="throughputOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel" shadow="hover">
         <template #header>
           <div class="panel-title">延迟分布对比</div>
         </template>
-        <v-chart :option="latencyDistOption" class="chart" autoresize />
+        <v-chart v-if="isActive" :option="latencyDistOption" class="chart" autoresize />
       </el-card>
     </div>
   </el-card>
@@ -180,7 +180,6 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElConfigProvider } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import { EventsOn, EventsOff } from '../api'
-// @ts-ignore - Wails 自动生成的文件，类型可能未及时更新
 import { GetMetrics, QueryHistoricalMetrics } from '../api'
 import type { EChartsOption } from 'echarts'
 

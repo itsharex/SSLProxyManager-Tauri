@@ -5,7 +5,6 @@ use crate::update;
 use anyhow::Result;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_shell::ShellExt;
 
 #[tauri::command]
 pub fn get_config() -> Result<config::Config, String> {
@@ -57,9 +56,8 @@ pub async fn check_update() -> Result<update::CheckResult, String> {
 }
 
 #[tauri::command]
-pub async fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    use tauri_plugin_shell::ShellExt;
-    app.shell().open(url, None).map_err(|e| e.to_string())
+pub async fn open_url(_app: tauri::AppHandle, url: String) -> Result<(), String> {
+    tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

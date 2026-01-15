@@ -14,7 +14,7 @@ use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
 };
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 use tower::util::ServiceExt;
 use tower_http::services::ServeDir;
 use tracing::{error, info};
@@ -312,7 +312,7 @@ async fn start_rule_server(app: tauri::AppHandle, rule: config::ListenRule) -> R
         app: app.clone(),
     };
 
-    let mut router = Router::new().route("/healthz", any(healthz));
+    let router = Router::new().route("/healthz", any(healthz));
 
     // 统一由 proxy_handler 处理：
     // - static_dir: 静态文件优先，页面路由（无扩展名）SPA 回退 index.html，资源缺失返回 404

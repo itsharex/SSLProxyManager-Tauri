@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use url::Url;
 
 static DB_POOL: Lazy<RwLock<Option<Arc<SqlitePool>>>> = Lazy::new(|| RwLock::new(None));
 static DB_PATH: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(String::new()));
@@ -138,22 +137,24 @@ pub struct MetricsSeries {
     pub s4xx: Vec<i64>,
     pub s5xx: Vec<i64>,
     pub s0: Vec<i64>,
-    pub avgLatencyMs: Vec<f64>,
-    pub maxLatencyMs: Vec<f64>,
+    #[serde(rename = "avgLatencyMs")]
+    pub avg_latency_ms: Vec<f64>,
+    #[serde(rename = "maxLatencyMs")]
+    pub max_latency_ms: Vec<f64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub p95: Option<Vec<f64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub p99: Option<Vec<f64>>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub upstreamDist: Option<Vec<KeyValue>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub topRouteErr: Option<Vec<KeyValue>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub topUpErr: Option<Vec<KeyValue>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub latencyDist: Option<Vec<KeyValue>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "upstreamDist")]
+    pub upstream_dist: Option<Vec<KeyValue>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "topRouteErr")]
+    pub top_route_err: Option<Vec<KeyValue>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "topUpErr")]
+    pub top_up_err: Option<Vec<KeyValue>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "latencyDist")]
+    pub latency_dist: Option<Vec<KeyValue>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,14 +165,17 @@ pub struct KeyValue {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsPayload {
-    pub windowSeconds: i32,
-    pub listenAddrs: Vec<String>,
-    pub byListenAddr: HashMap<String, MetricsSeries>,
+    #[serde(rename = "windowSeconds")]
+    pub window_seconds: i32,
+    #[serde(rename = "listenAddrs")]
+    pub listen_addrs: Vec<String>,
+    #[serde(rename = "byListenAddr")]
+    pub by_listen_addr: HashMap<String, MetricsSeries>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub minuteWindowSeconds: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub byListenMinute: Option<HashMap<String, MetricsSeries>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "minuteWindowSeconds")]
+    pub minute_window_seconds: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "byListenMinute")]
+    pub by_listen_minute: Option<HashMap<String, MetricsSeries>>,
 }
 
 fn default_db_path() -> Result<PathBuf> {
@@ -742,11 +746,11 @@ pub async fn query_request_logs(req: QueryRequestLogsRequest) -> Result<QueryReq
 
 pub fn get_metrics() -> MetricsPayload {
     MetricsPayload {
-        windowSeconds: 21600,
-        listenAddrs: vec![],
-        byListenAddr: HashMap::new(),
-        minuteWindowSeconds: Some(86400),
-        byListenMinute: Some(HashMap::new()),
+        window_seconds: 21600,
+        listen_addrs: vec![],
+        by_listen_addr: HashMap::new(),
+        minute_window_seconds: Some(86400),
+        by_listen_minute: Some(HashMap::new()),
     }
 }
 
@@ -761,14 +765,14 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
                 s4xx: vec![],
                 s5xx: vec![],
                 s0: vec![],
-                avgLatencyMs: vec![],
-                maxLatencyMs: vec![],
+                avg_latency_ms: vec![],
+                max_latency_ms: vec![],
                 p95: Some(vec![]),
                 p99: Some(vec![]),
-                upstreamDist: Some(vec![]),
-                topRouteErr: Some(vec![]),
-                topUpErr: Some(vec![]),
-                latencyDist: Some(vec![]),
+                upstream_dist: Some(vec![]),
+                top_route_err: Some(vec![]),
+                top_up_err: Some(vec![]),
+                latency_dist: Some(vec![]),
             },
         });
     };
@@ -791,14 +795,14 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
                 s4xx: vec![],
                 s5xx: vec![],
                 s0: vec![],
-                avgLatencyMs: vec![],
-                maxLatencyMs: vec![],
+                avg_latency_ms: vec![],
+                max_latency_ms: vec![],
                 p95: Some(vec![]),
                 p99: Some(vec![]),
-                upstreamDist: Some(vec![]),
-                topRouteErr: Some(vec![]),
-                topUpErr: Some(vec![]),
-                latencyDist: Some(vec![]),
+                upstream_dist: Some(vec![]),
+                top_route_err: Some(vec![]),
+                top_up_err: Some(vec![]),
+                latency_dist: Some(vec![]),
             },
         });
     }
@@ -899,7 +903,7 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
         q = q.bind(v);
     }
     let upstream_dist_rows = tauri::async_runtime::block_on(async { q.fetch_all(&*pool).await })?;
-    let upstreamDist = upstream_dist_rows
+    let upstream_dist = upstream_dist_rows
         .into_iter()
         .map(|(k, c)| KeyValue { key: k, value: c })
         .collect::<Vec<_>>();
@@ -918,7 +922,7 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
         q = q.bind(v);
     }
     let top_route_err_rows = tauri::async_runtime::block_on(async { q.fetch_all(&*pool).await })?;
-    let topRouteErr = top_route_err_rows
+    let top_route_err = top_route_err_rows
         .into_iter()
         .map(|(k, c)| KeyValue { key: k, value: c })
         .collect::<Vec<_>>();
@@ -937,7 +941,7 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
         q = q.bind(v);
     }
     let top_up_err_rows = tauri::async_runtime::block_on(async { q.fetch_all(&*pool).await })?;
-    let topUpErr = top_up_err_rows
+    let top_up_err = top_up_err_rows
         .into_iter()
         .map(|(k, c)| KeyValue { key: k, value: c })
         .collect::<Vec<_>>();
@@ -963,7 +967,7 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
     }
     let (b1, b2, b3, b4, b5, b6) = tauri::async_runtime::block_on(async { q.fetch_one(&*pool).await })?;
 
-    let latencyDist = vec![
+    let latency_dist = vec![
         KeyValue { key: "<10ms".to_string(), value: b1 },
         KeyValue { key: "10-50ms".to_string(), value: b2 },
         KeyValue { key: "50-100ms".to_string(), value: b3 },
@@ -1009,14 +1013,14 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
             s4xx,
             s5xx,
             s0: vec![0; series_len],
-            avgLatencyMs: avg_latency,
-            maxLatencyMs: max_latency,
+            avg_latency_ms: avg_latency,
+            max_latency_ms: max_latency,
             p95: Some(vec![p95; series_len]),
             p99: Some(vec![p99; series_len]),
-            upstreamDist: Some(upstreamDist),
-            topRouteErr: Some(topRouteErr),
-            topUpErr: Some(topUpErr),
-            latencyDist: Some(latencyDist),
+            upstream_dist: Some(upstream_dist),
+            top_route_err: Some(top_route_err),
+            top_up_err: Some(top_up_err),
+            latency_dist: Some(latency_dist),
         },
     })
 }
