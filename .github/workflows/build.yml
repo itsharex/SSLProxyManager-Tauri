@@ -1,86 +1,57 @@
-name: Build Release
+name: Build (Windows + macOS)
 
 on:
   push:
     tags:
-      - "v*"  # 推送 v 开头的标签时触发构建
-  workflow_dispatch:  # 允许手动触发工作流
+      - "v*"
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows-latest, macos-latest]
         include:
           - platform: windows-latest
-            os: windows
-            ext: .exe
+            name: windows
           - platform: macos-latest
-            os: macos
-            ext: ""
-    
+            name: macos
+
+    runs-on: ${{ matrix.platform }}
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
 
-      - name: Install dependencies
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 安装根目录依赖（主要是 @tauri-apps/cli）
+      - name: Install root deps
         run: npm ci
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          default: true
-          components: rustfmt, clippy
+      # 安装前端依赖（vite 在 frontend/package.json 里）
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Build application
-        run: npm run tauri build -- --target ${{ matrix.os }}-x86_64
+      - name: Build Tauri
+        run: npm run tauri:build
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SSLProxyManager-${{ matrix.os }}
+          name: SSLProxyManager-${{ matrix.name }}
           path: |
-            src-tauri/target/release/bundle/**/*
-            !src-tauri/target/release/bundle/**/*.dSYM
-            !src-tauri/target/release/bundle/**/*.pdb
+            target/release/bundle/**
+            target/**/release/bundle/**
           if-no-files-found: error
-          retention-days: 5
-
-      - name: Create release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.app.tar.gz
-            src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.zip
-          draft: true
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
