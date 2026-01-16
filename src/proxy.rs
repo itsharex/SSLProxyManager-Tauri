@@ -326,14 +326,20 @@ async fn start_rule_server(
 
     let cfg = crate::config::get_config();
 
-    let client = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder()
         .redirect(Policy::limited(10))
         .danger_accept_invalid_certs(true)
         .pool_max_idle_per_host(cfg.upstream_pool_max_idle)
         .pool_idle_timeout(Duration::from_secs(cfg.upstream_pool_idle_timeout_sec))
         .tcp_keepalive(Duration::from_secs(60))
         .connect_timeout(Duration::from_millis(cfg.upstream_connect_timeout_ms))
-        .timeout(Duration::from_millis(cfg.upstream_read_timeout_ms))
+        .timeout(Duration::from_millis(cfg.upstream_read_timeout_ms));
+
+    if !cfg.enable_http2 {
+        client_builder = client_builder.http1_only();
+    }
+
+    let client = client_builder
         .build()
         .context("创建上游 HTTP client 失败")?;
 

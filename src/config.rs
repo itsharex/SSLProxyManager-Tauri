@@ -8,6 +8,8 @@ fn default_true() -> bool { true }
 
 fn default_max_body_size() -> usize { 10 * 1024 * 1024 }
 
+fn default_enable_http2() -> bool { true }
+
 // 新增的默认值函数
 fn default_upstream_connect_timeout_ms() -> u64 { 5000 }
 fn default_upstream_read_timeout_ms() -> u64 { 30000 }
@@ -124,6 +126,9 @@ pub struct Config {
     #[serde(default = "default_upstream_pool_idle_timeout_sec")]
     pub upstream_pool_idle_timeout_sec: u64,
 
+    #[serde(default = "default_enable_http2")]
+    pub enable_http2: bool,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_storage: Option<MetricsStorage>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -145,6 +150,7 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
         upstream_read_timeout_ms: default_upstream_read_timeout_ms(),
         upstream_pool_max_idle: default_upstream_pool_max_idle(),
         upstream_pool_idle_timeout_sec: default_upstream_pool_idle_timeout_sec(),
+        enable_http2: default_enable_http2(),
         metrics_storage: None,
         update: None,
     })
@@ -165,6 +171,7 @@ fn default_config() -> Config {
         upstream_read_timeout_ms: default_upstream_read_timeout_ms(),
         upstream_pool_max_idle: default_upstream_pool_max_idle(),
         upstream_pool_idle_timeout_sec: default_upstream_pool_idle_timeout_sec(),
+        enable_http2: default_enable_http2(),
         metrics_storage: None,
         update: None,
     }

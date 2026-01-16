@@ -62,6 +62,13 @@
         <el-input-number v-model="upstreamPoolMaxIdle" :min="0" :max="1024" :step="1" controls-position="right" />
       </el-form-item>
 
+      <el-form-item label="HTTP/2">
+        <el-switch v-model="enableHttp2" active-text="开启" inactive-text="关闭" />
+        <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
+          关闭后，上游请求将强制使用 HTTP/1.1。
+        </el-text>
+      </el-form-item>
+
       <el-form-item label="上游空闲连接超时(秒)">
         <el-input-number v-model="upstreamPoolIdleTimeoutSec" :min="0" :max="3600" :step="1" controls-position="right" />
       </el-form-item>
@@ -92,6 +99,7 @@ const resetToDefaults = async () => {
     realtimeLogsOnlyErrors.value = false
 
     streamProxy.value = true
+    enableHttp2.value = DEFAULT_ENABLE_HTTP2
 
     maxBodySizeMB.value = DEFAULT_MAX_BODY_SIZE_MB
     maxResponseBodySizeMB.value = DEFAULT_MAX_RESPONSE_BODY_SIZE_MB
@@ -115,11 +123,13 @@ const DEFAULT_POOL_MAX_IDLE = 100
 const DEFAULT_POOL_IDLE_TIMEOUT_SEC = 60
 const DEFAULT_MAX_BODY_SIZE_MB = 10
 const DEFAULT_MAX_RESPONSE_BODY_SIZE_MB = 10
+const DEFAULT_ENABLE_HTTP2 = true
 
 const autoStart = ref(false)
 const showRealtimeLogs = ref(true)
 const realtimeLogsOnlyErrors = ref(false)
 const streamProxy = ref(true)
+const enableHttp2 = ref(DEFAULT_ENABLE_HTTP2)
 const maxBodySizeMB = ref(DEFAULT_MAX_BODY_SIZE_MB)
 const maxResponseBodySizeMB = ref(DEFAULT_MAX_RESPONSE_BODY_SIZE_MB)
 const upstreamConnectTimeoutMs = ref(DEFAULT_CONNECT_TIMEOUT_MS)
@@ -134,6 +144,7 @@ onMounted(async () => {
     showRealtimeLogs.value = configData.show_realtime_logs !== false
     realtimeLogsOnlyErrors.value = !!configData.realtime_logs_only_errors
     streamProxy.value = configData.stream_proxy !== false
+    enableHttp2.value = configData.enable_http2 !== false
     maxBodySizeMB.value = Math.round(((configData.max_body_size ?? DEFAULT_MAX_BODY_SIZE_MB * 1024 * 1024) / 1024 / 1024) * 100) / 100
     maxResponseBodySizeMB.value = Math.round(((configData.max_response_body_size ?? DEFAULT_MAX_RESPONSE_BODY_SIZE_MB * 1024 * 1024) / 1024 / 1024) * 100) / 100
     upstreamConnectTimeoutMs.value = configData.upstream_connect_timeout_ms ?? DEFAULT_CONNECT_TIMEOUT_MS
@@ -158,6 +169,7 @@ const getConfig = () => {
     show_realtime_logs: !!showRealtimeLogs.value,
     realtime_logs_only_errors: !!realtimeLogsOnlyErrors.value,
     stream_proxy: !!streamProxy.value,
+    enable_http2: !!enableHttp2.value,
     max_body_size: Math.floor(maxBodySizeMB.value * 1024 * 1024),
     max_response_body_size: Math.floor(maxResponseBodySizeMB.value * 1024 * 1024),
     upstream_connect_timeout_ms: Number(upstreamConnectTimeoutMs.value),
