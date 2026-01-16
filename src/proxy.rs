@@ -274,7 +274,11 @@ pub fn send_log_with_app(app: &tauri::AppHandle, message: String) {
     if cfg.realtime_logs_only_errors {
         // 非错误日志不推送
         let lower = message.to_ascii_lowercase();
-        if !(lower.contains("error") || lower.contains("failed") || lower.contains("异常") || lower.contains("失败")) {
+        if !(lower.contains("error")
+            || lower.contains("failed")
+            || lower.contains("异常")
+            || lower.contains("失败"))
+        {
             return;
         }
     }
@@ -541,7 +545,11 @@ fn format_access_log(
         ip.split(',').next().unwrap_or("-").trim().to_string()
     } else {
         let real = header_str(headers, "x-real-ip");
-        if real != "-" { real } else { "-".to_string() }
+        if real != "-" {
+            real
+        } else {
+            "-".to_string()
+        }
     };
     let time_local = time_local_string();
     let req_line = request_line(method, uri);
@@ -915,7 +923,6 @@ async fn proxy_handler(
                 return (StatusCode::BAD_GATEWAY, format!("bad upstream url: {e}")).into_response();
             }
         };
-
 
         let target = target;
         let mut builder = client.request(req.method().clone(), target.clone());

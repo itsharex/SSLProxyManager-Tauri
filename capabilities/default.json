@@ -66,6 +66,7 @@
     "core:window:allow-is-maximized",
     "core:window:allow-request-user-attention",
     "core:window:allow-set-always-on-top",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "process:default"
   ]
 }

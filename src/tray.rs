@@ -80,7 +80,8 @@ pub fn init_tray(app: &AppHandle) -> tauri::Result<()> {
                         let _ = window.unminimize();
                         let _ = window.show();
                         let _ = window.set_focus();
-                        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+                        let _ =
+                            window.request_user_attention(Some(tauri::UserAttentionType::Critical));
                         let _ = window.set_always_on_top(true);
                         let _ = window.set_always_on_top(false);
                     }

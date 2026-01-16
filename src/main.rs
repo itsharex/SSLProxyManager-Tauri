@@ -6,7 +6,9 @@ mod commands;
 mod config;
 mod metrics;
 mod proxy;
-mod single_instance;
+
+use tauri::Manager;
+
 mod tray;
 mod update;
 
@@ -14,24 +16,14 @@ fn main() {
     // 初始化日志
     tracing_subscriber::fmt::init();
 
-    // 单实例检查
-    // 目标：第二次启动时给用户明确提示“程序已运行”，然后退出。
-    let instance = single_instance::SingleInstance::new("SSLProxyManager")
-        .expect("failed to initialize single instance lock");
-    if !instance.is_single() {
-        // 第二实例不应该启动任何 tauri runtime（会影响已运行实例），这里改用 rfd 弹原生提示框。
-        // 如果 rfd 初始化失败则回退到 stderr。
-        let _ = rfd::MessageDialog::new()
-            .set_title("SSLProxyManager")
-            .set_description("程序已经运行，请勿重复启动。")
-            .set_buttons(rfd::MessageButtons::Ok)
-            .show();
-
-        eprintln!("程序已经运行，请勿重复启动。");
-        std::process::exit(1);
-    }
-
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                window.unminimize().ok();
+                window.set_focus().ok();
+            }
+        }))
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
@@ -85,3 +77,5 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+

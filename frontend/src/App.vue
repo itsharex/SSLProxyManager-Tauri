@@ -167,6 +167,7 @@ import About from './components/About.vue'
 import { Setting, DataAnalysis, Document, Sunny, Moon, Lock, Check, Search, Fold, Expand, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { GetConfig, SaveConfig } from './api'
+import { relaunch } from '@tauri-apps/plugin-process'
 
 const activeTab = ref<'base' | 'config' | 'logs' | 'dashboard' | 'access' | 'storage' | 'requestLogs' | 'about'>('config')
 const status = ref('stopped')
@@ -527,7 +528,12 @@ const handleSaveConfig = async () => {
       // ignore
     }
 
-    ElMessage.success('配置已保存')
+    ElMessage.success('配置已保存，程序将自动重启以应用新配置...')
+
+    // 等待消息显示，然后重启应用
+    setTimeout(() => {
+      relaunch()
+    }, 1500)
   } catch (e: any) {
     ElMessage.error(`保存失败: ${e?.message || String(e)}`)
   } finally {

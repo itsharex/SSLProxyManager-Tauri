@@ -12,7 +12,6 @@ use std::time::{Duration, Instant};
 const DB_FLUSH_BATCH_SIZE: usize = 1000;
 const DB_FLUSH_INTERVAL: Duration = Duration::from_secs(10);
 
-
 static DB_POOL: Lazy<RwLock<Option<Arc<SqlitePool>>>> = Lazy::new(|| RwLock::new(None));
 static DB_PATH: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(String::new()));
 static DB_ERROR: Lazy<RwLock<Option<String>>> = Lazy::new(|| RwLock::new(None));
@@ -25,7 +24,6 @@ const REALTIME_WINDOW_SECS: i64 = 43200; // 12h
 const REALTIME_MINUTE_WINDOW_SECS: i64 = 86400; // 24h
 
 static REALTIME_AGG: Lazy<RwLock<RealtimeAgg>> = Lazy::new(|| RwLock::new(RealtimeAgg::new()));
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct BlacklistEntry {
@@ -98,10 +96,10 @@ pub struct DashboardStatsRequest {
 pub struct DashboardStatsPoint {
     pub time_bucket: i64,
     pub total_requests: i64,
-    pub success_requests: i64,       // 2xx
-    pub redirect_requests: i64,      // 3xx
-    pub client_error_requests: i64,  // 4xx
-    pub server_error_requests: i64,  // 5xx
+    pub success_requests: i64,      // 2xx
+    pub redirect_requests: i64,     // 3xx
+    pub client_error_requests: i64, // 4xx
+    pub server_error_requests: i64, // 5xx
     #[sqlx(default)]
     pub avg_latency_ms: f64,
 }
@@ -182,7 +180,10 @@ pub struct MetricsPayload {
     #[serde(rename = "byListenAddr")]
     pub by_listen_addr: HashMap<String, MetricsSeries>,
 
-    #[serde(skip_serializing_if = "Option::is_none", rename = "minuteWindowSeconds")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename = "minuteWindowSeconds"
+    )]
     pub minute_window_seconds: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "byListenMinute")]
     pub by_listen_minute: Option<HashMap<String, MetricsSeries>>,
@@ -580,12 +581,13 @@ pub fn get_metrics_db_status() -> MetricsDBStatus {
         if let Some(dir) = p.parent() {
             dir_exists = dir.exists();
             // 尽量判断目录可写；如果目录不存在则为 false
-            dir_writable = dir_exists && std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(dir.join(".writable_check"))
-                .and_then(|_| std::fs::remove_file(dir.join(".writable_check")))
-                .is_ok();
+            dir_writable = dir_exists
+                && std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(dir.join(".writable_check"))
+                    .and_then(|_| std::fs::remove_file(dir.join(".writable_check")))
+                    .is_ok();
         }
         file_exists = p.exists();
 
@@ -619,9 +621,7 @@ pub async fn test_metrics_db_connection(db_path: String) -> Result<(bool, String
         .await?;
 
     // 简单查询
-    let _ = sqlx::query("SELECT 1")
-        .fetch_one(&pool)
-        .await?;
+    let _ = sqlx::query("SELECT 1").fetch_one(&pool).await?;
 
     Ok((true, "OK".to_string()))
 }
@@ -647,8 +647,8 @@ async fn refresh_blacklist_cache_internal(pool: &SqlitePool) -> Result<()> {
     for (ip, exp) in rows {
         cache.insert(normalize_ip_key(&ip), exp);
     }
-            Ok(())
-        }
+    Ok(())
+}
 
 pub async fn add_blacklist_entry(
     ip: String,
@@ -752,7 +752,12 @@ pub fn try_enqueue_request_log(log: RequestLogInsert) {
     // 实时聚合（不依赖 DB）
     {
         let mut agg = REALTIME_AGG.write();
-        agg.add(&log.listen_addr, log.timestamp, log.status_code, log.latency_ms);
+        agg.add(
+            &log.listen_addr,
+            log.timestamp,
+            log.status_code,
+            log.latency_ms,
+        );
     }
 
     if let Some(tx) = REQUEST_LOG_TX.read().as_ref() {
@@ -1044,11 +1049,12 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
     }
     ts_sql.push_str(" GROUP BY bucket ORDER BY bucket");
 
-    let mut q = sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64, Option<f64>, Option<f64>)>(&ts_sql)
-        .bind(granularity)
-        .bind(granularity)
-        .bind(start)
-        .bind(end);
+    let mut q =
+        sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64, Option<f64>, Option<f64>)>(&ts_sql)
+            .bind(granularity)
+            .bind(granularity)
+            .bind(start)
+            .bind(end);
     if let Some(v) = listen_addr {
         q = q.bind(v);
     }
@@ -1110,7 +1116,9 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
     }
     up_sql.push_str(" GROUP BY k ORDER BY c DESC LIMIT 20");
 
-    let mut q = sqlx::query_as::<_, (String, i64)>(&up_sql).bind(start).bind(end);
+    let mut q = sqlx::query_as::<_, (String, i64)>(&up_sql)
+        .bind(start)
+        .bind(end);
     if let Some(v) = listen_addr {
         q = q.bind(v);
     }
@@ -1129,7 +1137,9 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
     }
     route_err_sql.push_str(" GROUP BY request_path ORDER BY c DESC LIMIT 10");
 
-    let mut q = sqlx::query_as::<_, (String, i64)>(&route_err_sql).bind(start).bind(end);
+    let mut q = sqlx::query_as::<_, (String, i64)>(&route_err_sql)
+        .bind(start)
+        .bind(end);
     if let Some(v) = listen_addr {
         q = q.bind(v);
     }
@@ -1148,7 +1158,9 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
     }
     up_err_sql.push_str(" GROUP BY upstream ORDER BY c DESC LIMIT 10");
 
-    let mut q = sqlx::query_as::<_, (String, i64)>(&up_err_sql).bind(start).bind(end);
+    let mut q = sqlx::query_as::<_, (String, i64)>(&up_err_sql)
+        .bind(start)
+        .bind(end);
     if let Some(v) = listen_addr {
         q = q.bind(v);
     }
@@ -1173,27 +1185,47 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
         lat_sql.push_str(" AND listen_addr=?");
     }
 
-    let mut q = sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64)>(&lat_sql).bind(start).bind(end);
+    let mut q = sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64)>(&lat_sql)
+        .bind(start)
+        .bind(end);
     if let Some(v) = listen_addr {
         q = q.bind(v);
     }
-    let (b1, b2, b3, b4, b5, b6) = tauri::async_runtime::block_on(async { q.fetch_one(&*pool).await })?;
+    let (b1, b2, b3, b4, b5, b6) =
+        tauri::async_runtime::block_on(async { q.fetch_one(&*pool).await })?;
 
     let latency_dist = vec![
-        KeyValue { key: "<10ms".to_string(), value: b1 },
-        KeyValue { key: "10-50ms".to_string(), value: b2 },
-        KeyValue { key: "50-100ms".to_string(), value: b3 },
-        KeyValue { key: "100-300ms".to_string(), value: b4 },
-        KeyValue { key: "300-1000ms".to_string(), value: b5 },
-        KeyValue { key: ">=1000ms".to_string(), value: b6 },
+        KeyValue {
+            key: "<10ms".to_string(),
+            value: b1,
+        },
+        KeyValue {
+            key: "10-50ms".to_string(),
+            value: b2,
+        },
+        KeyValue {
+            key: "50-100ms".to_string(),
+            value: b3,
+        },
+        KeyValue {
+            key: "100-300ms".to_string(),
+            value: b4,
+        },
+        KeyValue {
+            key: "300-1000ms".to_string(),
+            value: b5,
+        },
+        KeyValue {
+            key: ">=1000ms".to_string(),
+            value: b6,
+        },
     ];
 
     // p95/p99：近似（全区间排序取分位点）
     let mut p95 = 0.0;
     let mut p99 = 0.0;
-    let mut p_sql = String::from(
-        "SELECT latency_ms FROM request_logs WHERE timestamp>=? AND timestamp<=?",
-    );
+    let mut p_sql =
+        String::from("SELECT latency_ms FROM request_logs WHERE timestamp>=? AND timestamp<=?");
     if listen_addr.is_some() {
         p_sql.push_str(" AND listen_addr=?");
     }
@@ -1203,7 +1235,8 @@ pub fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryMetrics
     if let Some(v) = listen_addr {
         q = q.bind(v);
     }
-    let lat_all = tauri::async_runtime::block_on(async { q.fetch_all(&*pool).await }).unwrap_or_default();
+    let lat_all =
+        tauri::async_runtime::block_on(async { q.fetch_all(&*pool).await }).unwrap_or_default();
     let n = lat_all.len();
     if n > 0 {
         let idx95 = ((n as f64) * 0.95).ceil() as usize;
