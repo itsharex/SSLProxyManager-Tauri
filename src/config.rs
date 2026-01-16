@@ -84,6 +84,12 @@ pub struct Config {
     #[serde(default)]
     pub auto_start: bool,
 
+    #[serde(default)]
+    pub show_realtime_logs: bool,
+
+    #[serde(default)]
+    pub realtime_logs_only_errors: bool,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_storage: Option<MetricsStorage>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -96,6 +102,8 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
         allow_all_lan: true,
         whitelist: vec![],
         auto_start: false,
+        show_realtime_logs: true,
+        realtime_logs_only_errors: false,
         metrics_storage: None,
         update: None,
     })
@@ -107,6 +115,8 @@ fn default_config() -> Config {
         allow_all_lan: true,
         whitelist: vec![],
         auto_start: false,
+        show_realtime_logs: true,
+        realtime_logs_only_errors: false,
         metrics_storage: None,
         update: None,
     }

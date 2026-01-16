@@ -11,28 +11,54 @@
           启用后，应用将在您登录系统时自动启动。
         </el-text>
       </el-form-item>
+
+      <el-form-item label="显示实时日志">
+        <el-switch v-model="showRealtimeLogs" />
+        <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
+          关闭后不会实时推送日志到界面（仍会在后台缓存，且可手动查看）。
+        </el-text>
+      </el-form-item>
+
+      <el-form-item v-if="showRealtimeLogs" label="仅显示错误日志">
+        <el-switch v-model="realtimeLogsOnlyErrors" />
+        <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
+          开启后仅实时推送错误相关日志，降低高并发下的 UI/日志开销。
+        </el-text>
+      </el-form-item>
     </el-form>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { GetConfig } from '../api'
 
 const autoStart = ref(false)
+const showRealtimeLogs = ref(true)
+const realtimeLogsOnlyErrors = ref(false)
 
 onMounted(async () => {
   try {
     const configData = (await GetConfig()) as any
     autoStart.value = !!configData.auto_start
+    showRealtimeLogs.value = configData.show_realtime_logs !== false
+    realtimeLogsOnlyErrors.value = !!configData.realtime_logs_only_errors
   } catch {
     // ignore
+  }
+})
+
+watch(showRealtimeLogs, (v) => {
+  if (!v) {
+    realtimeLogsOnlyErrors.value = false
   }
 })
 
 const getConfig = () => {
   return {
     auto_start: !!autoStart.value,
+    show_realtime_logs: !!showRealtimeLogs.value,
+    realtime_logs_only_errors: !!realtimeLogsOnlyErrors.value,
   }
 }
 

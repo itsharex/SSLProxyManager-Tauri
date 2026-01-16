@@ -7,6 +7,14 @@
           <el-text type="info" size="small" class="log-count">
             共 {{ totalLogCount }} 条（显示最近 {{ displayLogs.length }} 条）
           </el-text>
+          <el-button
+            v-if="!realtimeEnabled"
+            @click="refreshLogs"
+            type="primary"
+            size="small"
+          >
+            刷新
+          </el-button>
           <el-button 
             @click="clearLogs" 
             type="danger"
@@ -33,7 +41,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
-import { ClearLogs, EventsOn, GetLogs } from '../api'
+import { ClearLogs, EventsOn, GetConfig, GetLogs } from '../api'
 
 // 最大显示的日志条数（前端限制，只保留最近3000条以节省内存）
 const MAX_DISPLAY_LOGS = 3000
@@ -56,50 +64,71 @@ const displayLogs = computed(() => {
 // 总日志数量（包括未显示的）
 const totalLogCount = computed(() => allLogs.value.length)
 
-onMounted(async () => {
-  // 监听单行日志
-  unsubscribeLogLine = await EventsOn('log-line', (line: string) => {
-    allLogs.value.push(line)
-    
-    // 如果日志数量超过限制，删除最旧的
-    if (allLogs.value.length > MAX_DISPLAY_LOGS * 2) {
-      allLogs.value = allLogs.value.slice(-MAX_DISPLAY_LOGS)
-    }
-    
-    // 如果滚动到底部，自动滚动
-    if (logBox.value) {
-      const isNearBottom = logBox.value.scrollHeight - logBox.value.scrollTop - logBox.value.clientHeight < 100
-      if (isNearBottom) {
-        nextTick(() => {
-          scrollToBottom()
-        })
-      }
-    }
-  })
+const realtimeEnabled = ref(true)
 
-  // 监听全部日志
-  unsubscribeLogs = await EventsOn('logs', (data: string[]) => {
-    if (Array.isArray(data)) {
-      // 只保留最近的日志
-      allLogs.value = data.slice(-MAX_DISPLAY_LOGS)
+const refreshLogs = async () => {
+  try {
+    const existing = await GetLogs()
+    if (Array.isArray(existing)) {
+      allLogs.value = existing.slice(-MAX_DISPLAY_LOGS)
     } else {
       allLogs.value = []
     }
     nextTick(() => {
       scrollToBottom()
     })
-  })
-
-  // 主动请求一次（初始化拉取历史日志）
-  try {
-    const existing = await GetLogs()
-    if (Array.isArray(existing)) {
-      allLogs.value = existing.slice(-MAX_DISPLAY_LOGS)
-    }
   } catch {
     // ignore
   }
-  
+}
+
+onMounted(async () => {
+  // 读取配置：决定是否订阅实时 log-line
+  try {
+    const cfg = (await GetConfig()) as any
+    realtimeEnabled.value = cfg.show_realtime_logs !== false
+  } catch {
+    realtimeEnabled.value = true
+  }
+
+  if (realtimeEnabled.value) {
+    // 监听单行日志（实时推送）
+    unsubscribeLogLine = await EventsOn('log-line', (line: string) => {
+      allLogs.value.push(line)
+
+      // 如果日志数量超过限制，删除最旧的
+      if (allLogs.value.length > MAX_DISPLAY_LOGS * 2) {
+        allLogs.value = allLogs.value.slice(-MAX_DISPLAY_LOGS)
+      }
+
+      // 如果滚动到底部，自动滚动
+      if (logBox.value) {
+        const isNearBottom =
+          logBox.value.scrollHeight - logBox.value.scrollTop - logBox.value.clientHeight < 100
+        if (isNearBottom) {
+          nextTick(() => {
+            scrollToBottom()
+          })
+        }
+      }
+    })
+
+    // 监听全部日志（如果后端有推送）
+    unsubscribeLogs = await EventsOn('logs', (data: string[]) => {
+      if (Array.isArray(data)) {
+        allLogs.value = data.slice(-MAX_DISPLAY_LOGS)
+      } else {
+        allLogs.value = []
+      }
+      nextTick(() => {
+        scrollToBottom()
+      })
+    })
+  }
+
+  // 初始化拉取一次（关闭实时推送时也可用）
+  await refreshLogs()
+
   // 禁止拖动选中的文本
   if (logBox.value) {
     const preventDrag = (e: DragEvent) => {

@@ -527,34 +527,7 @@ const handleSaveConfig = async () => {
       // ignore
     }
 
-    // 保存成功后自动重启服务
-    const wasRunning = status.value === 'running'
-    if (wasRunning) {
-      try {
-        await StopServer()
-        status.value = 'stopped'
-        startTime.value = null
-        stopRuntimeTimer()
-      } catch (e: any) {
-        ElMessage.error(`保存成功，但停止服务失败: ${e?.message || String(e)}`)
-      }
-
-      try {
-        starting.value = true
-        await StartServer()
-        status.value = 'running'
-        startTime.value = Date.now()
-        currentTime.value = Date.now()
-        startRuntimeTimer()
-        ElMessage.success('配置已保存，服务已重启')
-      } catch (e: any) {
-        ElMessage.error(`配置已保存，但重启服务失败: ${e?.message || String(e)}`)
-      } finally {
-        starting.value = false
-      }
-    } else {
-      ElMessage.success('配置已保存')
-    }
+    ElMessage.success('配置已保存')
   } catch (e: any) {
     ElMessage.error(`保存失败: ${e?.message || String(e)}`)
   } finally {

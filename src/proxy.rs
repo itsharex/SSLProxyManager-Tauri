@@ -13,6 +13,7 @@ use reqwest::redirect::Policy;
 use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
+    time::Duration,
 };
 use tauri::Emitter;
 use tower::util::ServiceExt;
@@ -210,14 +211,9 @@ pub fn stop_server(app: tauri::AppHandle) -> Result<()> {
     *START_EXPECTED.write() = 0;
     *START_STARTED_COUNT.write() = 0;
 
-    let mut running = IS_RUNNING.write();
-    if !*running {
-        // 也要通知前端，确保按钮状态正确
-        let _ = app.emit("status", "stopped");
-        return Ok(());
-    }
-    *running = false;
-    drop(running);
+    // 无论 running 标志如何，都尽量 abort 掉已有的 listener 任务，确保“重启”能真正生效。
+    // 否则在某些状态机边界情况下（例如 running 标志未及时置位），会导致旧服务继续运行。
+    *IS_RUNNING.write() = false;
 
     let handles = std::mem::take(&mut *SERVERS.write());
     for handle in handles {
@@ -269,7 +265,20 @@ pub fn send_log_with_app(app: &tauri::AppHandle, message: String) {
         }
     }
 
-    // 推送前端
+    // 推送前端（受配置控制）
+    let cfg = config::get_config();
+    if !cfg.show_realtime_logs {
+        return;
+    }
+
+    if cfg.realtime_logs_only_errors {
+        // 非错误日志不推送
+        let lower = message.to_ascii_lowercase();
+        if !(lower.contains("error") || lower.contains("failed") || lower.contains("异常") || lower.contains("失败")) {
+            return;
+        }
+    }
+
     let _ = app.emit("log-line", message);
 }
 
@@ -303,6 +312,11 @@ async fn start_rule_server(app: tauri::AppHandle, rule: config::ListenRule) -> R
     let client = reqwest::Client::builder()
         .redirect(Policy::limited(10))
         .danger_accept_invalid_certs(true)
+        .pool_max_idle_per_host(32)
+        .pool_idle_timeout(Duration::from_secs(90))
+        .tcp_keepalive(Duration::from_secs(60))
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(60))
         .build()
         .context("创建上游 HTTP client 失败")?;
 
