@@ -339,7 +339,7 @@ async fn precheck_rule(rule: &config::ListenRule) -> Result<()> {
 async fn start_rule_server(
     app: tauri::AppHandle,
     rule: config::ListenRule,
-    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,) -> Result<()> {
+    shutdown_rx: tokio::sync::oneshot::Receiver<()>,) -> Result<()> {
     let addr = parse_listen_addr(&rule.listen_addr)?;
 
     let cfg = crate::config::get_config();
@@ -480,7 +480,7 @@ fn pick_upstream_smooth(route: &config::Route) -> Option<String> {
     });
 
     if entry.signature != sig || entry.upstreams.len() != route.upstreams.len() {
-        let mut ups: Vec<SmoothUpstream> = route
+        let ups: Vec<SmoothUpstream> = route
             .upstreams
             .iter()
             .map(|u| SmoothUpstream {

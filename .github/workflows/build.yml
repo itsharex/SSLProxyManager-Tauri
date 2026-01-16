@@ -1,4 +1,4 @@
-name: Build (Windows + Linux)
+name: Build (Windows + Linux + macOS)
 
 on:
   push:
@@ -27,17 +27,21 @@ jobs:
             name: windows-x64
             tauri_target: x86_64-pc-windows-msvc
             bundles: nsis
+          - platform: macos-latest
+            name: macos-universal
+            tauri_target: universal-apple-darwin
+            bundles: dmg
 
     runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Setup Rust
@@ -67,7 +71,7 @@ jobs:
         run: npm run tauri:build -- --target ${{ matrix.tauri_target }} --bundles ${{ matrix.bundles }}
 
       - name: Upload artifacts (workflow)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SSLProxyManager-${{ matrix.name }}
           path: |
@@ -85,3 +89,4 @@ jobs:
           files: |
             target/${{ matrix.tauri_target }}/release/bundle/deb/*.deb
             target/${{ matrix.tauri_target }}/release/bundle/nsis/*.exe
+            target/${{ matrix.tauri_target }}/release/bundle/dmg/*.dmg
