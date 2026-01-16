@@ -8,6 +8,13 @@ fn default_true() -> bool { true }
 
 fn default_max_body_size() -> usize { 10 * 1024 * 1024 }
 
+// 新增的默认值函数
+fn default_upstream_connect_timeout_ms() -> u64 { 5000 }
+fn default_upstream_read_timeout_ms() -> u64 { 30000 }
+fn default_upstream_pool_max_idle() -> usize { 100 }
+fn default_upstream_pool_idle_timeout_sec() -> u64 { 60 }
+fn default_max_response_body_size() -> usize { 10 * 1024 * 1024 }
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -102,6 +109,21 @@ pub struct Config {
     #[serde(default = "default_max_body_size")]
     pub max_body_size: usize,
 
+    #[serde(default = "default_max_response_body_size")]
+    pub max_response_body_size: usize,
+
+    #[serde(default = "default_upstream_connect_timeout_ms")]
+    pub upstream_connect_timeout_ms: u64,
+
+    #[serde(default = "default_upstream_read_timeout_ms")]
+    pub upstream_read_timeout_ms: u64,
+
+    #[serde(default = "default_upstream_pool_max_idle")]
+    pub upstream_pool_max_idle: usize,
+
+    #[serde(default = "default_upstream_pool_idle_timeout_sec")]
+    pub upstream_pool_idle_timeout_sec: u64,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_storage: Option<MetricsStorage>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,6 +140,11 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
         realtime_logs_only_errors: false,
         stream_proxy: true,
         max_body_size: default_max_body_size(),
+        max_response_body_size: default_max_response_body_size(),
+        upstream_connect_timeout_ms: default_upstream_connect_timeout_ms(),
+        upstream_read_timeout_ms: default_upstream_read_timeout_ms(),
+        upstream_pool_max_idle: default_upstream_pool_max_idle(),
+        upstream_pool_idle_timeout_sec: default_upstream_pool_idle_timeout_sec(),
         metrics_storage: None,
         update: None,
     })
@@ -133,6 +160,11 @@ fn default_config() -> Config {
         realtime_logs_only_errors: false,
         stream_proxy: true,
         max_body_size: default_max_body_size(),
+        max_response_body_size: default_max_response_body_size(),
+        upstream_connect_timeout_ms: default_upstream_connect_timeout_ms(),
+        upstream_read_timeout_ms: default_upstream_read_timeout_ms(),
+        upstream_pool_max_idle: default_upstream_pool_max_idle(),
+        upstream_pool_idle_timeout_sec: default_upstream_pool_idle_timeout_sec(),
         metrics_storage: None,
         update: None,
     }

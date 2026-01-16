@@ -324,14 +324,16 @@ async fn start_rule_server(
     mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,) -> Result<()> {
     let addr = parse_listen_addr(&rule.listen_addr)?;
 
+    let cfg = crate::config::get_config();
+
     let client = reqwest::Client::builder()
         .redirect(Policy::limited(10))
         .danger_accept_invalid_certs(true)
-        .pool_max_idle_per_host(32)
-        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(cfg.upstream_pool_max_idle)
+        .pool_idle_timeout(Duration::from_secs(cfg.upstream_pool_idle_timeout_sec))
         .tcp_keepalive(Duration::from_secs(60))
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(60))
+        .connect_timeout(Duration::from_millis(cfg.upstream_connect_timeout_ms))
+        .timeout(Duration::from_millis(cfg.upstream_read_timeout_ms))
         .build()
         .context("创建上游 HTTP client 失败")?;
 
@@ -969,6 +971,7 @@ async fn proxy_handler(
         let cfg = crate::config::get_config();
         let stream_proxy = cfg.stream_proxy;
         let max_body_size = cfg.max_body_size;
+        let max_response_body_size = cfg.max_response_body_size;
 
         // 根据配置决定是否流式转发请求体
         let req_body = if stream_proxy {
@@ -1045,10 +1048,9 @@ async fn proxy_handler(
             let stream = resp.bytes_stream();
             *out.body_mut() = Body::from_stream(stream);
         } else {
-            match resp.bytes().await {
-                Ok(b) => {
-                    *out.body_mut() = Body::from(b);
-                }
+            // 非流式：限制最大响应体大小，避免一次性读入超大响应导致内存爆
+            let bytes = match resp.bytes().await {
+                Ok(b) => b,
                 Err(e) => {
                     return (
                         StatusCode::BAD_GATEWAY,
@@ -1056,7 +1058,20 @@ async fn proxy_handler(
                     )
                         .into_response();
                 }
+            };
+
+            if max_response_body_size > 0 && bytes.len() > max_response_body_size {
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    format!(
+                        "upstream body too large (limit={} bytes)",
+                        max_response_body_size
+                    ),
+                )
+                    .into_response();
             }
+
+            *out.body_mut() = Body::from(bytes);
         }
 
         // 仅在错误时记录反代细节，降低高 QPS 下日志/锁开销
