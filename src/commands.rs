@@ -12,14 +12,22 @@ pub fn get_config() -> Result<config::Config, String> {
 }
 
 #[tauri::command]
-pub async fn save_config(mut cfg: config::Config) -> Result<config::Config, String> {
-    // 保存前补齐 rules/routes 的 id（None 或空字符串都会生成）
-    config::ensure_config_ids_for_save(&mut cfg);
+pub async fn save_config(app: tauri::AppHandle, mut cfg: config::Config) -> Result<config::Config, String> {
+    let was_running = proxy::is_running();
 
+    // 1. 如果正在运行，先停止服务
+    if was_running {
+        proxy::stop_server(app.clone()).map_err(|e| e.to_string())?;
+        // 增加延时，等待系统完全释放端口，这是避免“端口已占用”的关键
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+
+    // 2. 写入新配置到内存和文件
+    config::ensure_config_ids_for_save(&mut cfg);
     config::set_config(cfg.clone());
     config::save_config().map_err(|e| e.to_string())?;
 
-    // 更新数据库配置
+    // 3. 更新数据库配置（如果需要）
     if let Some(metrics_storage) = cfg.metrics_storage.as_ref() {
         if metrics_storage.enabled {
             metrics::init_db(metrics_storage.db_path.clone())
@@ -27,6 +35,11 @@ pub async fn save_config(mut cfg: config::Config) -> Result<config::Config, Stri
                 .map_err(|e| e.to_string())?;
             metrics::init_request_log_writer().await;
         }
+    }
+
+    // 4. 如果之前在运行，则用新配置重启服务
+    if was_running {
+        proxy::start_server(app).map_err(|e| e.to_string())?;
     }
 
     Ok(cfg)

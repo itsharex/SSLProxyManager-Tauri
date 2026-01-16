@@ -21,7 +21,19 @@ use tower_http::services::ServeDir;
 use tracing::{error, info};
 
 static IS_RUNNING: RwLock<bool> = RwLock::new(false);
-static SERVERS: RwLock<Vec<tauri::async_runtime::JoinHandle<()>>> = RwLock::new(Vec::new());
+struct ServerHandle {
+    handle: tauri::async_runtime::JoinHandle<()>,
+    shutdown_tx: tokio::sync::oneshot::Sender<()>,
+}
+
+impl ServerHandle {
+    fn abort(self) {
+        let _ = self.shutdown_tx.send(());
+        self.handle.abort();
+    }
+}
+
+static SERVERS: RwLock<Vec<ServerHandle>> = RwLock::new(Vec::new());
 static LOGS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 // 启动过程控制：要求所有 rules 都成功（你选的语义 B）
@@ -79,13 +91,7 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
         }
     }
 
-    // 已经 running 则直接返回
-    {
-        let running = IS_RUNNING.read();
-        if *running {
-            return Ok(());
-        }
-    }
+
 
     // 标记启动中，并初始化启动计数
     *STARTING.write() = true;
@@ -114,6 +120,8 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
     for rule in rules {
         let app_handle = app.clone();
         let listen_addr = rule.listen_addr.clone();
+        // 创建用于优雅停机的 oneshot 通道
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let handle = tauri::async_runtime::spawn(async move {
             // 只要 start_rule_server 通过了 bind 阶段，就认为该 rule 启动成功
             // 先做一次 bind 预检：确保端口/证书等关键错误能在启动阶段暴露出来。
@@ -170,7 +178,7 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
             }
 
             // 正式启动：进入 serve loop（直到 stop_server abort）
-            match start_rule_server(app_handle.clone(), rule).await {
+            match start_rule_server(app_handle.clone(), rule, shutdown_rx).await {
                 Ok(()) => {
                     // server 正常退出（一般不会发生，除非 stop_server abort 后）
                 }
@@ -193,7 +201,7 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
                 }
             }
         });
-        handles.push(handle);
+        handles.push(ServerHandle { handle, shutdown_tx });
     }
 
     *SERVERS.write() = handles;
@@ -310,7 +318,10 @@ async fn precheck_rule(rule: &config::ListenRule) -> Result<()> {
     Ok(())
 }
 
-async fn start_rule_server(app: tauri::AppHandle, rule: config::ListenRule) -> Result<()> {
+async fn start_rule_server(
+    app: tauri::AppHandle,
+    rule: config::ListenRule,
+    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,) -> Result<()> {
     let addr = parse_listen_addr(&rule.listen_addr)?;
 
     let client = reqwest::Client::builder()
@@ -353,14 +364,29 @@ async fn start_rule_server(app: tauri::AppHandle, rule: config::ListenRule) -> R
 
         send_log(format!("HTTPS 已启用: {}", addr));
 
-        axum_server::bind_rustls(addr, tls_cfg)
-            .serve(app)
-            .await
-            .map_err(|e| anyhow!(e))?;
+        let mut shutdown_rx = shutdown_rx;
+        let server_future = axum_server::bind_rustls(addr, tls_cfg).serve(app);
+        tokio::select! {
+            res = server_future => {
+                res.map_err(|e| anyhow!(e))?;
+            }
+            _ = &mut shutdown_rx => {
+                info!("收到关闭信号，HTTPS 服务 {} 即将停止", addr);
+            }
+        }
     } else {
         send_log(format!("HTTP 已启用: {}", addr));
+        let mut shutdown_rx = shutdown_rx;
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, app).await.map_err(|e| anyhow!(e))?;
+        let server_future = axum::serve(listener, app);
+        tokio::select! {
+            res = server_future => {
+                res.map_err(|e| anyhow!(e))?;
+            }
+            _ = &mut shutdown_rx => {
+                info!("收到关闭信号，HTTP 服务 {} 即将停止", addr);
+            }
+        }
     }
 
     Ok(())

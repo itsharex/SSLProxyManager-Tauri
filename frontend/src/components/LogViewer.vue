@@ -7,7 +7,7 @@
           <el-text type="info" size="small" class="log-count">
             共 {{ totalLogCount }} 条（显示最近 {{ displayLogs.length }} 条）
           </el-text>
-          <el-button
+          <el-button 
             v-if="!realtimeEnabled"
             @click="refreshLogs"
             type="primary"
@@ -93,42 +93,42 @@ onMounted(async () => {
 
   if (realtimeEnabled.value) {
     // 监听单行日志（实时推送）
-    unsubscribeLogLine = await EventsOn('log-line', (line: string) => {
-      allLogs.value.push(line)
-
-      // 如果日志数量超过限制，删除最旧的
-      if (allLogs.value.length > MAX_DISPLAY_LOGS * 2) {
-        allLogs.value = allLogs.value.slice(-MAX_DISPLAY_LOGS)
-      }
-
-      // 如果滚动到底部，自动滚动
-      if (logBox.value) {
+  unsubscribeLogLine = await EventsOn('log-line', (line: string) => {
+    allLogs.value.push(line)
+    
+    // 如果日志数量超过限制，删除最旧的
+    if (allLogs.value.length > MAX_DISPLAY_LOGS * 2) {
+      allLogs.value = allLogs.value.slice(-MAX_DISPLAY_LOGS)
+    }
+    
+    // 如果滚动到底部，自动滚动
+    if (logBox.value) {
         const isNearBottom =
           logBox.value.scrollHeight - logBox.value.scrollTop - logBox.value.clientHeight < 100
-        if (isNearBottom) {
-          nextTick(() => {
-            scrollToBottom()
-          })
-        }
+      if (isNearBottom) {
+        nextTick(() => {
+          scrollToBottom()
+        })
       }
-    })
+    }
+  })
 
     // 监听全部日志（如果后端有推送）
-    unsubscribeLogs = await EventsOn('logs', (data: string[]) => {
-      if (Array.isArray(data)) {
-        allLogs.value = data.slice(-MAX_DISPLAY_LOGS)
-      } else {
-        allLogs.value = []
-      }
-      nextTick(() => {
-        scrollToBottom()
-      })
+  unsubscribeLogs = await EventsOn('logs', (data: string[]) => {
+    if (Array.isArray(data)) {
+      allLogs.value = data.slice(-MAX_DISPLAY_LOGS)
+    } else {
+      allLogs.value = []
+    }
+    nextTick(() => {
+      scrollToBottom()
     })
+  })
   }
 
   // 初始化拉取一次（关闭实时推送时也可用）
   await refreshLogs()
-
+  
   // 禁止拖动选中的文本
   if (logBox.value) {
     const preventDrag = (e: DragEvent) => {
