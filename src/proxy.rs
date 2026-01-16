@@ -11,6 +11,7 @@ use axum::{
 use parking_lot::RwLock;
 use reqwest::redirect::Policy;
 use std::{
+    collections::HashMap,
     net::{IpAddr, SocketAddr},
     sync::Arc,
     time::Duration,
@@ -41,6 +42,23 @@ static STARTING: RwLock<bool> = RwLock::new(false);
 static START_EXPECTED: RwLock<usize> = RwLock::new(0);
 static START_FAILED: RwLock<bool> = RwLock::new(false);
 static START_STARTED_COUNT: RwLock<usize> = RwLock::new(0);
+
+#[derive(Debug, Clone)]
+struct SmoothUpstream {
+    url: String,
+    weight: i32,
+    current: i32,
+}
+
+#[derive(Debug, Clone)]
+struct SmoothLbState {
+    signature: String,
+    total_weight: i32,
+    upstreams: Vec<SmoothUpstream>,
+}
+
+static UPSTREAM_LB: once_cell::sync::Lazy<RwLock<HashMap<String, SmoothLbState>>> =
+    once_cell::sync::Lazy::new(|| RwLock::new(HashMap::new()));
 
 #[derive(Clone)]
 struct AppState {
@@ -424,6 +442,75 @@ fn match_route<'a>(routes: &'a [config::Route], path: &str) -> Option<&'a config
         .filter(|(p, _)| path.starts_with(p))
         .max_by_key(|(p, _)| p.len())
         .map(|(_, r)| r)
+}
+
+fn upstream_signature(route: &config::Route) -> String {
+    // 用 url+weight 生成签名，配置变化时会触发状态重建
+    let mut parts: Vec<String> = route
+        .upstreams
+        .iter()
+        .map(|u| format!("{}#{}", u.url, u.weight))
+        .collect();
+    parts.sort();
+    parts.join("|")
+}
+
+fn pick_upstream_smooth(route: &config::Route) -> Option<String> {
+    if route.upstreams.is_empty() {
+        return None;
+    }
+    if route.upstreams.len() == 1 {
+        return Some(route.upstreams[0].url.clone());
+    }
+
+    let route_id = route.id.as_deref().unwrap_or("").trim();
+    if route_id.is_empty() {
+        // 理论上不会发生：保存配置时会补齐 id。
+        // 为避免出错，回退到第一个。
+        return Some(route.upstreams[0].url.clone());
+    }
+
+    let sig = upstream_signature(route);
+
+    let mut map = UPSTREAM_LB.write();
+    let entry = map.entry(route_id.to_string()).or_insert_with(|| SmoothLbState {
+        signature: String::new(),
+        total_weight: 0,
+        upstreams: Vec::new(),
+    });
+
+    if entry.signature != sig || entry.upstreams.len() != route.upstreams.len() {
+        let mut ups: Vec<SmoothUpstream> = route
+            .upstreams
+            .iter()
+            .map(|u| SmoothUpstream {
+                url: u.url.clone(),
+                weight: std::cmp::max(1, u.weight),
+                current: 0,
+            })
+            .collect();
+        let total = ups.iter().map(|u| u.weight).sum::<i32>();
+
+        entry.signature = sig;
+        entry.total_weight = std::cmp::max(1, total);
+        entry.upstreams = ups;
+    }
+
+    // 平滑加权轮询：current += weight，选 current 最大者，选中者 current -= total
+    let mut best_idx = 0usize;
+    for i in 0..entry.upstreams.len() {
+        let w = entry.upstreams[i].weight;
+        entry.upstreams[i].current = entry.upstreams[i].current.saturating_add(w);
+        if entry.upstreams[i].current > entry.upstreams[best_idx].current {
+            best_idx = i;
+        }
+    }
+
+    entry.upstreams[best_idx].current = entry.upstreams[best_idx]
+        .current
+        .saturating_sub(entry.total_weight);
+
+    Some(entry.upstreams[best_idx].url.clone())
 }
 
 fn is_basic_auth_ok(
@@ -923,8 +1010,8 @@ async fn proxy_handler(
     }
 
     // 3. 处理反代逻辑（如果有 upstream）
-    if let Some(upstream) = route.upstreams.first() {
-        let target = match build_upstream_url(&upstream.url, route.proxy_pass_path.as_deref(), &uri)
+    if let Some(upstream_url) = pick_upstream_smooth(route) {
+        let target = match build_upstream_url(&upstream_url, route.proxy_pass_path.as_deref(), &uri)
         {
             Ok(u) => u,
             Err(e) => {
@@ -948,7 +1035,7 @@ async fn proxy_handler(
                     request_path: path.clone(),
                     request_host: header_str(&headers_snapshot, "host"),
                     status_code: StatusCode::BAD_GATEWAY.as_u16() as i32,
-                    upstream: upstream.url.clone(),
+                    upstream: upstream_url.clone(),
                     latency_ms: elapsed * 1000.0,
                     user_agent: header_str(&headers_snapshot, "user-agent"),
                     referer: header_str(&headers_snapshot, "referer"),

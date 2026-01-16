@@ -108,28 +108,6 @@
                   </el-row>
                 </el-form>
 
-                <el-card class="headers-section" shadow="never">
-                  <template #header>
-                    <div class="headers-title">proxy_set_header（可选）</div>
-                  </template>
-                  <el-text type="info" size="small" class="headers-hint">
-                    支持变量：$remote_addr / $proxy_add_x_forwarded_for / $scheme
-                  </el-text>
-                  <div class="headers-actions">
-                    <el-button @click="applyCommonHeaders(rt)" type="primary" size="small">
-                      <el-icon><MagicStick /></el-icon> 快速应用常用 Nginx Headers
-                    </el-button>
-                  </div>
-                  <div v-for="(kv, hIndex) in (rt.SetHeadersList || [])" :key="hIndex" class="header-item">
-                    <el-input v-model="kv.Key" placeholder="Header-Key (如 Host)" class="header-key" />
-                    <el-input v-model="kv.Value" placeholder="Header-Value (如 $remote_addr)" class="header-value" />
-                    <el-button @click="(rt.SetHeadersList || []).splice(hIndex, 1)" type="danger" size="small">删除</el-button>
-                  </div>
-                  <el-button @click="(rt.SetHeadersList ||= []).push({ Key: '', Value: '' })" type="primary" size="small">
-                    <el-icon><Plus /></el-icon> 添加自定义 Header
-                  </el-button>
-                </el-card>
-
                 <el-card class="upstreams-section" shadow="never">
                   <template #header>
                     <span>上游服务器</span>
@@ -165,6 +143,28 @@
                   </div>
                   <el-button @click="addUpstream(ruleIndex, routeIndex)" type="primary">
                     <el-icon><Plus /></el-icon> 添加新的上游服务器
+                  </el-button>
+                </el-card>
+
+                <el-card class="headers-section" shadow="never">
+                  <template #header>
+                    <div class="headers-title">proxy_set_header（可选）</div>
+                  </template>
+                  <el-text type="info" size="small" class="headers-hint">
+                    支持变量：$remote_addr / $proxy_add_x_forwarded_for / $scheme
+                  </el-text>
+                  <div class="headers-actions">
+                    <el-button @click="applyCommonHeaders(rt)" type="primary" size="small">
+                      <el-icon><MagicStick /></el-icon> 快速应用常用 Nginx Headers
+                    </el-button>
+                  </div>
+                  <div v-for="(kv, hIndex) in (rt.SetHeadersList || [])" :key="hIndex" class="header-item">
+                    <el-input v-model="kv.Key" placeholder="Header-Key (如 Host)" class="header-key" />
+                    <el-input v-model="kv.Value" placeholder="Header-Value (如 $remote_addr)" class="header-value" />
+                    <el-button @click="(rt.SetHeadersList || []).splice(hIndex, 1)" type="danger" size="small">删除</el-button>
+                  </div>
+                  <el-button @click="(rt.SetHeadersList ||= []).push({ Key: '', Value: '' })" type="primary" size="small">
+                    <el-icon><Plus /></el-icon> 添加自定义 Header
                   </el-button>
                 </el-card>
               </el-card>
