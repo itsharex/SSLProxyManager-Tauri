@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 // 默认 true 帮助函数，供 serde 使用
 fn default_true() -> bool { true }
 
+fn default_max_body_size() -> usize { 10 * 1024 * 1024 }
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -97,6 +99,9 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub stream_proxy: bool,
 
+    #[serde(default = "default_max_body_size")]
+    pub max_body_size: usize,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_storage: Option<MetricsStorage>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -112,6 +117,7 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
         show_realtime_logs: true,
         realtime_logs_only_errors: false,
         stream_proxy: true,
+        max_body_size: default_max_body_size(),
         metrics_storage: None,
         update: None,
     })
@@ -126,6 +132,7 @@ fn default_config() -> Config {
         show_realtime_logs: true,
         realtime_logs_only_errors: false,
         stream_proxy: true,
+        max_body_size: default_max_body_size(),
         metrics_storage: None,
         update: None,
     }

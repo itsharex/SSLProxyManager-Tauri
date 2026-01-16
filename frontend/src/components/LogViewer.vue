@@ -83,6 +83,12 @@ const refreshLogs = async () => {
 }
 
 onMounted(async () => {
+  // 监听实时日志开关变更
+  const toggleHandler = (e: any) => {
+    realtimeEnabled.value = !!e.detail
+  }
+  window.addEventListener('toggle-realtime-logs', toggleHandler)
+
   // 读取配置：决定是否订阅实时 log-line
   try {
     const cfg = (await GetConfig()) as any
@@ -143,6 +149,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('toggle-realtime-logs', toggleHandler)
+
   if (unsubscribeLogLine) unsubscribeLogLine()
   if (unsubscribeLogs) unsubscribeLogs()
   

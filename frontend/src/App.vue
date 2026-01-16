@@ -508,8 +508,7 @@ const handleSaveConfig = async () => {
         }
       }
     }
-    
-    ElMessage.info('配置保存后将自动重启服务...')
+
     const savedCfg = await SaveConfig(finalConfig)
 
     // 同步开机自启（由前端插件执行；后端只负责持久化 auto_start 到 config.toml）

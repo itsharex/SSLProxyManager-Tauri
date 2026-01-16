@@ -965,14 +965,19 @@ async fn proxy_handler(
             builder = builder.header(axum::http::header::AUTHORIZATION, "");
         }
 
-                // 根据配置决定是否流式转发请求体
-        let req_body = if crate::config::get_config().stream_proxy {
+        // 热路径只读一次配置（避免频繁 clone 整个 Config）
+        let cfg = crate::config::get_config();
+        let stream_proxy = cfg.stream_proxy;
+        let max_body_size = cfg.max_body_size;
+
+        // 根据配置决定是否流式转发请求体
+        let req_body = if stream_proxy {
             // 流式：避免把整个 body 读入内存
             let body_stream = req.into_body().into_data_stream();
             reqwest::Body::wrap_stream(body_stream)
         } else {
             // 非流式：先整块读取到内存
-            let bytes = match axum::body::to_bytes(req.into_body(), usize::MAX).await {
+            let bytes = match axum::body::to_bytes(req.into_body(), max_body_size).await {
                 Ok(b) => b,
                 Err(e) => {
                     return (
@@ -1036,7 +1041,7 @@ async fn proxy_handler(
         }
 
         // 根据配置决定是否流式转发响应体
-        if crate::config::get_config().stream_proxy {
+        if stream_proxy {
             let stream = resp.bytes_stream();
             *out.body_mut() = Body::from_stream(stream);
         } else {

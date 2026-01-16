@@ -4,7 +4,7 @@
     <template #header>
       <h3>基础配置</h3>
     </template>
-    <el-form label-width="120px">
+    <el-form label-width="160px">
       <el-form-item label="开机自启">
         <el-switch v-model="autoStart" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
@@ -24,16 +24,19 @@
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
           开启后仅实时推送错误相关日志，降低高并发下的 UI/日志开销。
         </el-text>
-        <el-switch v-model="realtimeLogsOnlyErrors" />
-        <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          开启后仅实时推送错误相关日志，降低高并发下的 UI/日志开销。
-        </el-text>
       </el-form-item>
 
         <el-form-item label="代理流式转发">
         <el-switch v-model="streamProxy" active-text="开启" inactive-text="关闭" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
           关闭后，请求/响应将在内存中整块读取，可能占用更多内存。
+        </el-text>
+      </el-form-item>
+
+      <el-form-item v-if="!streamProxy" label="最大Body大小(MB)">
+        <el-input-number v-model="maxBodySizeMB" :min="1" :max="1024" :step="1" controls-position="right" />
+        <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
+          仅在关闭流式转发时生效；超过该大小将拒绝读取。
         </el-text>
       </el-form-item>
 
@@ -49,6 +52,7 @@ const autoStart = ref(false)
 const showRealtimeLogs = ref(true)
 const realtimeLogsOnlyErrors = ref(false)
 const streamProxy = ref(true)
+const maxBodySizeMB = ref(10)
 
 onMounted(async () => {
   try {
@@ -57,6 +61,7 @@ onMounted(async () => {
     showRealtimeLogs.value = configData.show_realtime_logs !== false
     realtimeLogsOnlyErrors.value = !!configData.realtime_logs_only_errors
     streamProxy.value = configData.stream_proxy !== false
+    maxBodySizeMB.value = Math.round(((configData.max_body_size ?? 10 * 1024 * 1024) / 1024 / 1024) * 100) / 100
   } catch {
     // ignore
   }
@@ -66,6 +71,7 @@ watch(showRealtimeLogs, (v) => {
   if (!v) {
     realtimeLogsOnlyErrors.value = false
   }
+  window.dispatchEvent(new CustomEvent('toggle-realtime-logs', { detail: v }))
 })
 
 const getConfig = () => {
@@ -74,6 +80,7 @@ const getConfig = () => {
     show_realtime_logs: !!showRealtimeLogs.value,
     realtime_logs_only_errors: !!realtimeLogsOnlyErrors.value,
     stream_proxy: !!streamProxy.value,
+    max_body_size: Math.floor(maxBodySizeMB.value * 1024 * 1024),
   }
 }
 
