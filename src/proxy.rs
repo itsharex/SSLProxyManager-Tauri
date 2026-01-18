@@ -3,7 +3,7 @@ use anyhow::{anyhow, Context, Result};
 use axum::{
     body::Body,
     extract::{connect_info::ConnectInfo, FromRef, State},
-    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, Uri},
+    http::{HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::any,
     Router,
@@ -1055,6 +1055,9 @@ async fn proxy_handler(
             }
         }
 
+        // 应用 set_headers（覆盖同名 header，语义对齐 nginx proxy_set_header）
+        builder = apply_set_headers(builder, route, &remote, req.headers(), rule.ssl_enable);
+
         // 处理 Basic Auth 转发
         if !rule.basic_auth_forward_header {
             builder = builder.header(axum::http::header::AUTHORIZATION, "");
@@ -1233,4 +1236,90 @@ fn is_hop_header(name: &str) -> bool {
             | "transfer-encoding"
             | "upgrade"
     )
+}
+
+fn expand_proxy_header_value(
+    raw: &str,
+    remote: &SocketAddr,
+    inbound_headers: &HeaderMap,
+    is_tls: bool,
+) -> String {
+    let mut out = raw.to_string();
+
+    // $remote_addr: 与 nginx 语义接近，取客户端 IP
+    out = out.replace("$remote_addr", &remote.ip().to_string());
+
+    // $scheme: 由监听规则推断
+    out = out.replace("$scheme", if is_tls { "https" } else { "http" });
+
+    // $proxy_add_x_forwarded_for: 在已有 X-Forwarded-For 基础上追加 remote.ip
+    if out.contains("$proxy_add_x_forwarded_for") {
+        let remote_ip = remote.ip().to_string();
+        let prior = inbound_headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
+
+        let combined = match prior {
+            Some(p) => format!("{}, {}", p, remote_ip),
+            None => remote_ip,
+        };
+
+        out = out.replace("$proxy_add_x_forwarded_for", &combined);
+    }
+
+    out
+}
+
+fn apply_set_headers(
+    mut builder: reqwest::RequestBuilder,
+    route: &config::Route,
+    remote: &SocketAddr,
+    inbound_headers: &HeaderMap,
+    is_tls: bool,
+) -> reqwest::RequestBuilder {
+    let Some(map) = route.set_headers.as_ref() else {
+        return builder;
+    };
+
+    for (k, v) in map {
+        let key = k.trim();
+        if key.is_empty() {
+            continue;
+        }
+
+        // 避免覆盖 hop-by-hop 头（与前面复制逻辑保持一致）
+        if is_hop_header(key) {
+            continue;
+        }
+
+        let expanded = expand_proxy_header_value(v, remote, inbound_headers, is_tls);
+
+        // 空值：按“覆盖同名 header”为目标，这里采用显式设置空字符串
+        //（与现有 BasicAuth 处理方式一致）
+        if expanded.is_empty() {
+            builder = builder.header(key, "");
+            continue;
+        }
+
+        let name = match HeaderName::from_bytes(key.as_bytes()) {
+            Ok(n) => n,
+            Err(_) => {
+                // 非法 header name：忽略
+                continue;
+            }
+        };
+        let value = match HeaderValue::from_str(&expanded) {
+            Ok(v) => v,
+            Err(_) => {
+                // 非法 header value：忽略
+                continue;
+            }
+        };
+
+        builder = builder.header(name, value);
+    }
+
+    builder
 }
