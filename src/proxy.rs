@@ -263,6 +263,16 @@ pub fn is_running() -> bool {
     *IS_RUNNING.read()
 }
 
+pub fn is_starting() -> bool {
+    *STARTING.read()
+}
+
+pub fn is_effectively_running() -> bool {
+    // is_running 在异步启动阶段可能仍为 false，因此这里把“启动中”也视为运行态，
+    // 以便托盘/按钮等 UI 不会出现与真实状态明显背离的情况。
+    is_running() || is_starting()
+}
+
 pub fn get_logs() -> Vec<String> {
     LOGS.read().clone()
 }

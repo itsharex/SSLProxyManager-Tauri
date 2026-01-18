@@ -8,6 +8,16 @@
       <el-descriptions :column="1" border>
         <el-descriptions-item label="产品名称">SSLProxyManager</el-descriptions-item>
         <el-descriptions-item label="当前版本">{{ version || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="作者">
+          <el-link type="primary" @click.prevent="handleOpenURL(authorUrl)">
+            {{ authorName }}
+          </el-link>
+        </el-descriptions-item>
+        <el-descriptions-item label="仓库地址">
+          <el-link type="primary" @click.prevent="handleOpenURL(repoUrl)">
+            {{ repoUrl }}
+          </el-link>
+        </el-descriptions-item>
         <el-descriptions-item label="版权">© 2026</el-descriptions-item>
       </el-descriptions>
 
@@ -15,27 +25,20 @@
 
       <el-form :model="updateForm" label-width="180px">
         <el-form-item label="启用更新检查">
-          <el-switch v-model="updateForm.Enabled" />
+          <el-switch v-model="updateForm.enabled" />
         </el-form-item>
 
-        <el-form-item v-if="updateForm.Enabled" label="升级服务器地址">
-          <el-input
-            v-model="updateForm.ServerURL"
-            placeholder="例如：https://example.com/api/update/check"
-            style="max-width: 520px;"
-          />
+
+        <el-form-item v-if="updateForm.enabled" label="启动后自动检查">
+          <el-switch v-model="updateForm.auto_check" />
         </el-form-item>
 
-        <el-form-item v-if="updateForm.Enabled" label="启动后自动检查">
-          <el-switch v-model="updateForm.AutoCheck" />
+        <el-form-item v-if="updateForm.enabled" label="超时(毫秒)">
+          <el-input-number v-model="updateForm.timeout_ms" :min="1000" :max="60000" />
         </el-form-item>
 
-        <el-form-item v-if="updateForm.Enabled" label="超时(毫秒)">
-          <el-input-number v-model="updateForm.TimeoutMs" :min="1000" :max="60000" />
-        </el-form-item>
-
-        <el-form-item v-if="updateForm.Enabled" label="忽略预发布版本">
-          <el-switch v-model="updateForm.IgnorePrerelease" />
+        <el-form-item v-if="updateForm.enabled" label="忽略预发布版本">
+          <el-switch v-model="updateForm.ignore_prerelease" />
         </el-form-item>
 
         <el-form-item>
@@ -76,16 +79,20 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { GetConfig, GetVersion, CheckUpdate, OpenURL } from '../api'
 
+const authorName = 'fhy'
+const authorUrl = 'https://github.com/userfhy'
+const repoUrl = 'https://github.com/userfhy/SSLProxyManager-Tauri'
+
 const version = ref<string>('')
 const checking = ref(false)
 const checkResult = ref<any>(null)
 
 const updateForm = ref({
-  Enabled: false,
-  ServerURL: '',
-  AutoCheck: false,
-  TimeoutMs: 10000,
-  IgnorePrerelease: true,
+  enabled: false,
+  server_url: '',
+  auto_check: false,
+  timeout_ms: 10000,
+  ignore_prerelease: true,
 })
 
 const resultTitle = computed(() => {
@@ -97,40 +104,40 @@ const resultTitle = computed(() => {
 
 const loadInfo = async () => {
   try {
-    version.value = await GetVersion()
+    version.value = String(await GetVersion())
   } catch (e: any) {
     version.value = ''
   }
 
   try {
     const cfg: any = await GetConfig()
-    if (cfg && cfg.Update) {
-      updateForm.value.Enabled = !!cfg.Update.Enabled
-      updateForm.value.ServerURL = cfg.Update.ServerURL || ''
-      updateForm.value.AutoCheck = !!cfg.Update.AutoCheck
-      updateForm.value.TimeoutMs = cfg.Update.TimeoutMs || 10000
-      updateForm.value.IgnorePrerelease = cfg.Update.IgnorePrerelease !== false
+    if (cfg && cfg.update) {
+      updateForm.value.enabled = !!cfg.update.enabled
+      updateForm.value.server_url = cfg.update.server_url || ''
+      updateForm.value.auto_check = !!cfg.update.auto_check
+      updateForm.value.timeout_ms = cfg.update.timeout_ms || 10000
+      updateForm.value.ignore_prerelease = cfg.update.ignore_prerelease !== false
     }
   } catch (e: any) {
     // ignore
   }
 }
 
-const handleOpenDownload = (url: string) => {
+const handleOpenURL = (url: string) => {
   if (!url) {
-    ElMessage.warning('下载链接为空')
+    ElMessage.warning('链接为空')
     return
   }
   OpenURL(url)
 }
 
+const handleOpenDownload = (url: string) => {
+  handleOpenURL(url)
+}
+
 const handleCheckUpdate = async () => {
-  if (!updateForm.value.Enabled) {
+  if (!updateForm.value.enabled) {
     ElMessage.warning('请先启用更新检查')
-    return
-  }
-  if (!updateForm.value.ServerURL) {
-    ElMessage.warning('请先配置升级服务器地址')
     return
   }
 
@@ -149,7 +156,7 @@ const handleCheckUpdate = async () => {
 // 暴露给父组件，用于保存配置
 const getConfig = () => {
   return {
-    Update: { ...updateForm.value }
+    update: { ...updateForm.value }
   }
 }
 

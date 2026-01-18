@@ -161,7 +161,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { StartServer, StopServer, GetStatus, QuitApp, OpenURL, EventsOn } from './api'
+import { StartServer, StopServer, GetStatus, QuitApp, OpenURL, EventsOn, SetTrayProxyState } from './api'
 import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import TitleBar from './components/TitleBar.vue'
 import BaseConfig from './components/BaseConfig.vue'
@@ -568,14 +568,27 @@ onMounted(async () => {
   startAutoTheme()
   
   status.value = await GetStatus()
+  try {
+    await SetTrayProxyState(status.value === 'running')
+  } catch {
+    // ignore
+  }
+
   // 如果服务已经在运行，记录启动时间（使用当前时间作为近似值）
   if (status.value === 'running') {
     startTime.value = Date.now()
     currentTime.value = Date.now()
     startRuntimeTimer()
   }
-  await EventsOn('status', (s: unknown) => {
+  await EventsOn('status', async (s: unknown) => {
     status.value = s as string
+
+    try {
+      await SetTrayProxyState(status.value === 'running')
+    } catch {
+      // ignore
+    }
+
     // 如果状态变为运行，开始计时
     if (s === 'running' && !startTime.value) {
       startTime.value = Date.now()

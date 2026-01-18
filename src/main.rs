@@ -57,6 +57,7 @@ fn main() {
             commands::hide_to_tray,
             commands::quit_app,
             commands::get_dashboard_stats,
+            commands::set_tray_proxy_state,
         ])
         .setup(|app| {
             // 初始化应用

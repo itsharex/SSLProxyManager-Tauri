@@ -40,6 +40,10 @@ export async function GetStatus() {
   return await invoke('get_status');
 }
 
+export async function SetTrayProxyState(running: boolean) {
+  return await invoke('set_tray_proxy_state', { running });
+}
+
 // 日志相关
 export async function GetLogs() {
   return await invoke('get_logs');

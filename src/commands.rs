@@ -1,6 +1,7 @@
 use crate::config;
 use crate::metrics;
 use crate::proxy;
+use crate::tray;
 use crate::update;
 use anyhow::Result;
 use tauri::Manager;
@@ -12,7 +13,10 @@ pub fn get_config() -> Result<config::Config, String> {
 }
 
 #[tauri::command]
-pub async fn save_config(app: tauri::AppHandle, mut cfg: config::Config) -> Result<config::Config, String> {
+pub async fn save_config(
+    app: tauri::AppHandle,
+    mut cfg: config::Config,
+) -> Result<config::Config, String> {
     let was_running = proxy::is_running();
 
     // 1. 如果正在运行，先停止服务
@@ -100,6 +104,12 @@ pub fn get_logs() -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn clear_logs() -> Result<(), String> {
     proxy::clear_logs();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_tray_proxy_state(_app: tauri::AppHandle, running: bool) -> Result<(), String> {
+    tray::set_tray_proxy_state(running);
     Ok(())
 }
 

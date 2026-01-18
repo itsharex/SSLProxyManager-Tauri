@@ -1,5 +1,5 @@
 use crate::config;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use reqwest::Client;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -22,17 +22,49 @@ pub struct CheckResult {
     pub error: Option<String>,
 }
 
-pub async fn check_for_updates(
-    current_version: &str,
-    cfg: config::UpdateConfig,
-) -> Result<CheckResult> {
-    if !cfg.enabled || cfg.server_url.is_empty() {
+#[derive(Debug, Clone, Deserialize)]
+struct GithubAsset {
+    browser_download_url: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    prerelease: bool,
+    body: Option<String>,
+    html_url: Option<String>,
+    assets: Option<Vec<GithubAsset>>,
+}
+
+fn normalize_github_tag(tag: &str) -> Result<Version> {
+    // 约定 tag 为 v1.0.6，但也兼容 1.0.6
+    let v = tag.trim().trim_start_matches('v');
+    Version::parse(v).context("无效的 GitHub tag 版本号")
+}
+
+fn pick_download_url(rel: &GithubRelease) -> String {
+    if let Some(assets) = rel.assets.as_ref() {
+        if let Some(a) = assets
+            .iter()
+            .find(|a| !a.browser_download_url.trim().is_empty())
+        {
+            return a.browser_download_url.clone();
+        }
+    }
+
+    // 没有资产时退化到 release 页面
+    rel.html_url.clone().unwrap_or_default()
+}
+
+pub async fn check_for_updates(current_version: &str, cfg: config::UpdateConfig) -> Result<CheckResult> {
+    // 兼容旧逻辑：仍然尊重 enabled 开关；server_url 配置将被前端隐藏，但仍允许保留在配置里
+    if !cfg.enabled {
         return Ok(CheckResult {
             has_update: false,
             is_prerelease: false,
             current_version: current_version.to_string(),
             update_info: None,
-            error: Some("更新检查未启用或服务器地址未配置".to_string()),
+            error: Some("更新检查未启用".to_string()),
         });
     }
 
@@ -47,40 +79,61 @@ pub async fn check_for_updates(
         .build()
         .context("创建 HTTP 客户端失败")?;
 
-    let mut url = reqwest::Url::parse(&cfg.server_url).context("解析服务器 URL 失败")?;
+    // 固定 GitHub 仓库
+    let owner = "userfhy";
+    let repo = "SSLProxyManager-Tauri";
 
-    url.query_pairs_mut()
-        .append_pair("v", current_version)
-        .append_pair("os", std::env::consts::OS)
-        .append_pair("arch", std::env::consts::ARCH);
+    // 1) 拉取 release 列表（可筛选 prerelease）
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/releases?per_page=20",
+        owner, repo
+    );
 
-    let response = client
+    let resp = client
         .get(url)
         .header("User-Agent", "SSLProxyManager-Update-Checker/1.0")
+        .header("Accept", "application/vnd.github+json")
         .send()
         .await
-        .context("请求更新服务器失败")?;
+        .context("请求 GitHub releases 失败")?;
 
-    if !response.status().is_success() {
-        return Err(anyhow::anyhow!(
-            "更新服务器返回错误状态: {}",
-            response.status()
-        ));
+    if !resp.status().is_success() {
+        return Err(anyhow!("GitHub 返回错误状态: {}", resp.status()));
     }
 
-    let update_info: UpdateInfo = response.json().await.context("解析更新信息失败")?;
+    let releases: Vec<GithubRelease> = resp.json().await.context("解析 GitHub releases 失败")?;
 
-    let latest_version = Version::parse(&update_info.latest_version).context("无效的最新版本号")?;
+    let candidate = if cfg.ignore_prerelease {
+        releases.into_iter().find(|r| !r.prerelease)
+    } else {
+        releases.into_iter().next()
+    };
 
-    let is_prerelease = !latest_version.pre.is_empty();
+    let Some(rel) = candidate else {
+        return Ok(CheckResult {
+            has_update: false,
+            is_prerelease: false,
+            current_version: current_version.to_string(),
+            update_info: None,
+            error: Some("未找到可用的 GitHub Release".to_string()),
+        });
+    };
 
-    // 如果配置了忽略预发布版本，且最新版是预发布版，则认为没有更新
+    let latest_version_semver = normalize_github_tag(&rel.tag_name)?;
+    let is_prerelease = rel.prerelease;
+
+    // ignore_prerelease=true 时，我们已经筛掉了 prerelease，因此此分支通常不会命中
     if cfg.ignore_prerelease && is_prerelease {
         return Ok(CheckResult {
             has_update: false,
             is_prerelease: true,
             current_version: current_version.to_string(),
-            update_info: Some(update_info),
+            update_info: Some(UpdateInfo {
+                latest_version: rel.tag_name.clone(),
+                download_url: pick_download_url(&rel),
+                release_notes: rel.body.unwrap_or_default(),
+                is_mandatory: false,
+            }),
             error: None,
         });
     }
@@ -89,14 +142,19 @@ pub async fn check_for_updates(
         true
     } else {
         let current = Version::parse(current_version).context("无效的当前版本号")?;
-        latest_version > current
+        latest_version_semver > current
     };
 
     Ok(CheckResult {
         has_update,
         is_prerelease,
         current_version: current_version.to_string(),
-        update_info: Some(update_info),
+        update_info: Some(UpdateInfo {
+            latest_version: rel.tag_name.clone(),
+            download_url: pick_download_url(&rel),
+            release_notes: rel.body.unwrap_or_default(),
+            is_mandatory: false,
+        }),
         error: None,
     })
 }
