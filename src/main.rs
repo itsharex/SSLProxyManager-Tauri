@@ -6,6 +6,7 @@ mod commands;
 mod config;
 mod metrics;
 mod proxy;
+mod ws_proxy;
 
 use tauri::Manager;
 
@@ -78,5 +79,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-

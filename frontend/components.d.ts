@@ -54,6 +54,7 @@ declare module 'vue' {
     MetricsStorage: typeof import('./src/components/MetricsStorage.vue')['default']
     RequestLogs: typeof import('./src/components/RequestLogs.vue')['default']
     TitleBar: typeof import('./src/components/TitleBar.vue')['default']
+    WsProxyConfig: typeof import('./src/components/WsProxyConfig.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

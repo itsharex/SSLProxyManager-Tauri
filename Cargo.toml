@@ -37,7 +37,7 @@ base64 = "0.22"
 sha2 = "0.10"
 hex = "0.4"
 tauri-plugin-single-instance = "2.0"
-axum = "0.8.8"
+axum = { version = "0.8.8", features = ["ws"] }
 hyper = "1.8.1"
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
@@ -49,6 +49,9 @@ tower-http = { version = "0.6.8", features = ["fs"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 url = "2.5.8"
 tauri-plugin-process = "2.0"
+
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
 
 [features]
 # 默认启用所有功能

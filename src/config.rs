@@ -3,6 +3,8 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
+use crate::ws_proxy;
+
 // 默认 true 帮助函数，供 serde 使用
 fn default_true() -> bool {
     true
@@ -117,6 +119,10 @@ pub struct UpdateConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub rules: Vec<ListenRule>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ws_proxy: Option<Vec<ws_proxy::WsListenRule>>,
+
     pub allow_all_lan: bool,
     pub whitelist: Vec<WhitelistEntry>,
 
@@ -162,6 +168,7 @@ pub struct Config {
 static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
     RwLock::new(Config {
         rules: vec![],
+        ws_proxy: None,
         allow_all_lan: true,
         whitelist: vec![],
         auto_start: false,
@@ -183,6 +190,7 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
 fn default_config() -> Config {
     Config {
         rules: vec![],
+        ws_proxy: None,
         allow_all_lan: true,
         whitelist: vec![],
         auto_start: false,

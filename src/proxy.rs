@@ -1,4 +1,4 @@
-use crate::{config, metrics};
+use crate::{config, metrics, ws_proxy};
 use anyhow::{anyhow, Context, Result};
 use axum::{
     body::Body,
@@ -111,6 +111,11 @@ pub struct RuleStartErrorPayload {
 }
 
 pub fn start_server(app: tauri::AppHandle) -> Result<()> {
+    // 启动 WS 独立监听（如果启用）。
+    // WS 的启动/失败目前不参与 HTTP rules 的启动汇总逻辑；如果端口占用，会在日志中提示。
+    if let Err(e) = ws_proxy::start_ws_servers(app.clone()) {
+        send_log(format!("启动 WS 监听器失败: {e}"));
+    }
     // 如果正在启动，直接返回（避免重复点击并发启动）
     {
         let starting = STARTING.read();
@@ -239,6 +244,9 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
 }
 
 pub fn stop_server(app: tauri::AppHandle) -> Result<()> {
+    // 停止 WS 独立监听
+    ws_proxy::stop_ws_servers();
+
     // 无论当前状态如何，停止都要尽量清理启动中的状态
     *STARTING.write() = false;
     *START_FAILED.write() = false;

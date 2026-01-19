@@ -1,4 +1,15 @@
-allow_all_lan = false
+allow_all_lan = true
+auto_start = true
+show_realtime_logs = true
+realtime_logs_only_errors = true
+stream_proxy = false
+max_body_size = 10485760
+max_response_body_size = 10485760
+upstream_connect_timeout_ms = 5000
+upstream_read_timeout_ms = 30000
+upstream_pool_max_idle = 100
+upstream_pool_idle_timeout_sec = 60
+enable_http2 = true
 
 [[rules]]
 id = "7d401c55-327d-4a88-956b-b751d8f66f25"
@@ -15,12 +26,9 @@ basic_auth_forward_header = false
 id = "82b402ad-70de-4122-ace8-8b206aa3de3f"
 path = "/"
 exclude_basic_auth = false
+follow_redirects = true
 
 [rules.routes.set_headers]
-X-Forwarded-For = "$proxy_add_x_forwarded_for"
-Host = ""
-X-Real-IP = "$remote_addr"
-X-Forwarded-Proto = "$scheme"
 
 [[rules.routes.upstreams]]
 url = "https://baidu.com"
@@ -42,6 +50,7 @@ id = "dd868e44ef864cde13d42158232bf6d5"
 path = "/"
 static_dir = "/home/fhy/mygo/staticServer/dist"
 exclude_basic_auth = false
+follow_redirects = false
 upstreams = []
 
 [rules.routes.set_headers]
@@ -51,6 +60,7 @@ id = "8fc2aaf7f5d4fa2559e14296b61b2aca"
 path = "/prod-api"
 proxy_pass_path = "/"
 exclude_basic_auth = true
+follow_redirects = false
 
 [rules.routes.set_headers]
 
@@ -58,5 +68,27 @@ exclude_basic_auth = true
 url = "http://127.0.0.1:8080"
 weight = 1
 
+[[ws_proxy]]
+enabled = true
+listen_addr = "0.0.0.0:8800"
+ssl_enable = false
+cert_file = ""
+key_file = ""
+
+[[ws_proxy.routes]]
+path = "/ws"
+upstream_url = "ws://124.222.6.60:8800"
+
 [[whitelist]]
-ip = "192.168.1.1"
+ip = "127.0.0.1"
+
+[metrics_storage]
+enabled = true
+db_path = "/home/fhy/db/metrics/metrics.db"
+
+[update]
+enabled = true
+server_url = ""
+auto_check = true
+timeout_ms = 10000
+ignore_prerelease = true
