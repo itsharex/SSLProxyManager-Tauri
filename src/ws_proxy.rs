@@ -204,10 +204,10 @@ async fn proxy_ws(client: ws::WebSocket, upstream_url: String) -> Result<()> {
         while let Some(msg) = c_rx.next().await {
             let msg = msg.map_err(|e| anyhow!(e))?;
             let tmsg = match msg {
-                ws::Message::Text(s) => tokio_tungstenite::tungstenite::Message::Text(s.to_string()),
-                ws::Message::Binary(b) => tokio_tungstenite::tungstenite::Message::Binary(b.to_vec()),
-                ws::Message::Ping(b) => tokio_tungstenite::tungstenite::Message::Ping(b.to_vec()),
-                ws::Message::Pong(b) => tokio_tungstenite::tungstenite::Message::Pong(b.to_vec()),
+                ws::Message::Text(s) => tokio_tungstenite::tungstenite::Message::Text(s.to_string().into()),
+                ws::Message::Binary(b) => tokio_tungstenite::tungstenite::Message::Binary(b),
+                ws::Message::Ping(b) => tokio_tungstenite::tungstenite::Message::Ping(b),
+                ws::Message::Pong(b) => tokio_tungstenite::tungstenite::Message::Pong(b),
                 ws::Message::Close(c) => {
                     let frame = c.map(|c| tokio_tungstenite::tungstenite::protocol::CloseFrame {
                         code: tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::from(
@@ -227,7 +227,7 @@ async fn proxy_ws(client: ws::WebSocket, upstream_url: String) -> Result<()> {
         while let Some(msg) = u_rx.next().await {
             let msg = msg.map_err(|e| anyhow!(e))?;
             let amsg = match msg {
-                tokio_tungstenite::tungstenite::Message::Text(s) => ws::Message::Text(s.into()),
+                tokio_tungstenite::tungstenite::Message::Text(s) => ws::Message::Text(s.to_string().into()),
                 tokio_tungstenite::tungstenite::Message::Binary(b) => ws::Message::Binary(Bytes::from(b)),
                 tokio_tungstenite::tungstenite::Message::Ping(b) => ws::Message::Ping(Bytes::from(b)),
                 tokio_tungstenite::tungstenite::Message::Pong(b) => ws::Message::Pong(Bytes::from(b)),
