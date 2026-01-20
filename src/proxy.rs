@@ -1227,10 +1227,15 @@ async fn proxy_handler(
             }
         }
 
-        // 2.7) BasicAuth 不转发：移除 Authorization（避免误伤业务 token）
-        if !rule.basic_auth_forward_header {
+        // 2.7) 若启用了 BasicAuth 且不允许向上游转发，则移除 Authorization
+        // 注意：未启用 BasicAuth 时，Authorization 往往是业务鉴权头，必须保留。
+        let will_remove_auth = rule.basic_auth_enable && !rule.basic_auth_forward_header;
+
+        if will_remove_auth {
             final_headers.remove(axum::http::header::AUTHORIZATION);
         }
+
+        let after_remove_has_auth = final_headers.contains_key(axum::http::header::AUTHORIZATION);
 
         // 3) 构造并发送上游请求（build 后清空并写入 final_headers，彻底去重）
         let mut builder = client.request(method_up, target.clone());
