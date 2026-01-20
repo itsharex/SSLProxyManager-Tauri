@@ -174,10 +174,12 @@ async fn start_tcp_server(
                             Ok((client_socket, client_addr)) => {
                                 // 访问控制/黑名单：TCP stream 没有 headers，仅按 remote ip 判定
                                 let cfg = config::get_config();
-                                let headers = axum::http::HeaderMap::new();
-                                if !access_control::is_allowed(&client_addr, &headers, &cfg) {
-                                    tracing::warn!("STREAM TCP forbidden: ip={} upstream={}", client_addr.ip(), upstream.name);
-                                    continue;
+                                if cfg.stream_access_control_enabled {
+                                    let headers = axum::http::HeaderMap::new();
+                                    if !access_control::is_allowed(&client_addr, &headers, &cfg) {
+                                        tracing::warn!("STREAM TCP forbidden: ip={} upstream={}", client_addr.ip(), upstream.name);
+                                        continue;
+                                    }
                                 }
 
                                 let upstream = upstream.clone();
@@ -384,9 +386,11 @@ async fn start_udp_server(
                             Ok((n, client_addr)) => {
                                 // 访问控制/黑名单：UDP 仅按 remote ip 判定
                                 let cfg = config::get_config();
-                                let headers = axum::http::HeaderMap::new();
-                                if !access_control::is_allowed(&client_addr, &headers, &cfg) {
-                                    continue;
+                                if cfg.stream_access_control_enabled {
+                                    let headers = axum::http::HeaderMap::new();
+                                    if !access_control::is_allowed(&client_addr, &headers, &cfg) {
+                                        continue;
+                                    }
                                 }
 
                                 let up_server = select_upstream_server(&upstream, &client_addr);

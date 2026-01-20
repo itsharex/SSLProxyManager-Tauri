@@ -178,7 +178,7 @@ async fn ws_handler(
 ) -> Response {
     // 访问控制（与 HTTP 代理一致）：黑名单优先，其次白名单，再次 allow_all_lan
     let cfg = config::get_config();
-    if !access_control::is_allowed(&remote, &headers, &cfg) {
+    if cfg.ws_access_control_enabled && !access_control::is_allowed(&remote, &headers, &cfg) {
         let ip = access_control::client_ip_from_headers(&remote, &headers);
         let _ = app.emit("log-line", format!("WS forbidden: ip={ip} path={}", uri.path()));
         return (StatusCode::FORBIDDEN, "Forbidden").into_response();

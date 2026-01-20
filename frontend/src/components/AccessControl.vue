@@ -5,7 +5,24 @@
     </template>
 
     <el-form label-width="180px">
-      <el-form-item>
+      <el-form-item label="访问控制开关">
+      <div class="ac-switches">
+        <div class="ac-switch">
+          <el-switch v-model="localConfig.http_access_control_enabled" active-text="HTTP/HTTPS"/>
+        </div>
+        <div class="ac-switch">
+          <el-switch v-model="localConfig.ws_access_control_enabled" active-text="WebSocket"/>
+        </div>
+        <div class="ac-switch">
+          <el-switch v-model="localConfig.stream_access_control_enabled" active-text="Stream"/>
+        </div>
+      </div>
+      <el-text type="info" size="small" class="mini-hint">
+        用于控制三类反向代理是否启用访问控制（白名单/黑名单）。关闭后将直接放行对应类型的请求。
+      </el-text>
+    </el-form-item>
+
+    <el-form-item>
         <el-checkbox v-model="localConfig.allow_all_lan">
           允许所有局域网 IP 访问
         </el-checkbox>
@@ -201,6 +218,9 @@ interface BlacklistEntry {
 const props = defineProps<{ config: any }>()
 
 const localConfig = ref({
+  http_access_control_enabled: true,
+  ws_access_control_enabled: true,
+  stream_access_control_enabled: true,
   allow_all_lan: true,
   whitelist: [] as { ip: string }[],
 })
@@ -317,6 +337,9 @@ watch(
   () => props.config,
   (newConfig) => {
     if (newConfig) {
+      localConfig.value.http_access_control_enabled = newConfig.http_access_control_enabled !== false
+      localConfig.value.ws_access_control_enabled = newConfig.ws_access_control_enabled !== false
+      localConfig.value.stream_access_control_enabled = newConfig.stream_access_control_enabled !== false
       localConfig.value.allow_all_lan = newConfig.allow_all_lan ?? true
       localConfig.value.whitelist = Array.isArray(newConfig.whitelist) ? [...newConfig.whitelist] : []
     }
@@ -497,6 +520,9 @@ onMounted(async () => {
 // 供父组件调用
 const getConfig = () => {
   return {
+    http_access_control_enabled: !!localConfig.value.http_access_control_enabled,
+    ws_access_control_enabled: !!localConfig.value.ws_access_control_enabled,
+    stream_access_control_enabled: !!localConfig.value.stream_access_control_enabled,
     allow_all_lan: localConfig.value.allow_all_lan,
     whitelist: localConfig.value.whitelist.filter((item) => item.ip.trim() !== ''),
   }
@@ -541,6 +567,18 @@ defineExpose({
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.ac-switches {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ac-switch {
+  display: flex;
+  align-items: center;
 }
 
 .whitelist-list {

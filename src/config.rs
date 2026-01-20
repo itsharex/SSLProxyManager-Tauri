@@ -22,6 +22,18 @@ fn default_ws_proxy_enabled() -> bool {
     true
 }
 
+fn default_http_access_control_enabled() -> bool {
+    true
+}
+
+fn default_ws_access_control_enabled() -> bool {
+    true
+}
+
+fn default_stream_access_control_enabled() -> bool {
+    true
+}
+
 // 新增的默认值函数
 fn default_upstream_connect_timeout_ms() -> u64 {
     5000
@@ -208,6 +220,13 @@ pub struct Config {
     #[serde(default)]
     pub stream: StreamProxyConfig,
 
+    #[serde(default = "default_http_access_control_enabled")]
+    pub http_access_control_enabled: bool,
+    #[serde(default = "default_ws_access_control_enabled")]
+    pub ws_access_control_enabled: bool,
+    #[serde(default = "default_stream_access_control_enabled")]
+    pub stream_access_control_enabled: bool,
+
     pub allow_all_lan: bool,
     pub whitelist: Vec<WhitelistEntry>,
 
@@ -256,6 +275,9 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
         ws_proxy_enabled: default_ws_proxy_enabled(),
         ws_proxy: None,
         stream: StreamProxyConfig::default(),
+        http_access_control_enabled: default_http_access_control_enabled(),
+        ws_access_control_enabled: default_ws_access_control_enabled(),
+        stream_access_control_enabled: default_stream_access_control_enabled(),
         allow_all_lan: true,
         whitelist: vec![],
         auto_start: false,
@@ -280,6 +302,9 @@ fn default_config() -> Config {
         ws_proxy_enabled: default_ws_proxy_enabled(),
         ws_proxy: None,
         stream: StreamProxyConfig::default(),
+        http_access_control_enabled: default_http_access_control_enabled(),
+        ws_access_control_enabled: default_ws_access_control_enabled(),
+        stream_access_control_enabled: default_stream_access_control_enabled(),
         allow_all_lan: true,
         whitelist: vec![],
         auto_start: false,

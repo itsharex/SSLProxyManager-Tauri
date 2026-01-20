@@ -714,73 +714,75 @@ async fn proxy_handler(
     {
         let cfg = config::get_config();
 
-        // 黑名单优先：命中直接拒绝
-        let client_ip_str = access_control::client_ip_from_headers(&remote, req.headers());
+        if cfg.http_access_control_enabled {
+            // 黑名单优先：命中直接拒绝
+            let client_ip_str = access_control::client_ip_from_headers(&remote, req.headers());
 
-        if metrics::is_ip_blacklisted(&client_ip_str) {
-            let mut resp = Response::new(Body::from("IP Forbidden"));
-            *resp.status_mut() = StatusCode::FORBIDDEN;
+            if metrics::is_ip_blacklisted(&client_ip_str) {
+                let mut resp = Response::new(Body::from("IP Forbidden"));
+                *resp.status_mut() = StatusCode::FORBIDDEN;
 
-            let elapsed = started_at.elapsed().as_secs_f64();
-            let line = format_access_log(
-                &node,
-                &headers_snapshot,
-                &method,
-                &uri,
-                StatusCode::FORBIDDEN,
-                elapsed,
-            );
-            push_log(&app, line);
+                let elapsed = started_at.elapsed().as_secs_f64();
+                let line = format_access_log(
+                    &node,
+                    &headers_snapshot,
+                    &method,
+                    &uri,
+                    StatusCode::FORBIDDEN,
+                    elapsed,
+                );
+                push_log(&app, line);
 
-            metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
-                timestamp: chrono::Utc::now().timestamp(),
-                listen_addr: node.clone(),
-                client_ip: client_ip(&remote, &headers_snapshot),
-                remote_ip: remote.ip().to_string(),
-                method: method.as_str().to_string(),
-                request_path: path.clone(),
-                request_host: header_str(&headers_snapshot, "host"),
-                status_code: StatusCode::FORBIDDEN.as_u16() as i32,
-                upstream: "".to_string(),
-                latency_ms: elapsed * 1000.0,
-                user_agent: header_str(&headers_snapshot, "user-agent"),
-                referer: header_str(&headers_snapshot, "referer"),
-            });
+                metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                    timestamp: chrono::Utc::now().timestamp(),
+                    listen_addr: node.clone(),
+                    client_ip: client_ip(&remote, &headers_snapshot),
+                    remote_ip: remote.ip().to_string(),
+                    method: method.as_str().to_string(),
+                    request_path: path.clone(),
+                    request_host: header_str(&headers_snapshot, "host"),
+                    status_code: StatusCode::FORBIDDEN.as_u16() as i32,
+                    upstream: "".to_string(),
+                    latency_ms: elapsed * 1000.0,
+                    user_agent: header_str(&headers_snapshot, "user-agent"),
+                    referer: header_str(&headers_snapshot, "referer"),
+                });
 
-            return resp;
-        }
+                return resp;
+            }
 
-        if !is_access_allowed(&remote, req.headers(), &cfg) {
-            let mut resp = Response::new(Body::from("Forbidden"));
-            *resp.status_mut() = StatusCode::FORBIDDEN;
+            if !is_access_allowed(&remote, req.headers(), &cfg) {
+                let mut resp = Response::new(Body::from("Forbidden"));
+                *resp.status_mut() = StatusCode::FORBIDDEN;
 
-            let elapsed = started_at.elapsed().as_secs_f64();
-            let line = format_access_log(
-                &node,
-                &headers_snapshot,
-                &method,
-                &uri,
-                StatusCode::FORBIDDEN,
-                elapsed,
-            );
-            push_log(&app, line);
+                let elapsed = started_at.elapsed().as_secs_f64();
+                let line = format_access_log(
+                    &node,
+                    &headers_snapshot,
+                    &method,
+                    &uri,
+                    StatusCode::FORBIDDEN,
+                    elapsed,
+                );
+                push_log(&app, line);
 
-            metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
-                timestamp: chrono::Utc::now().timestamp(),
-                listen_addr: node.clone(),
-                client_ip: client_ip(&remote, &headers_snapshot),
-                remote_ip: remote.ip().to_string(),
-                method: method.as_str().to_string(),
-                request_path: path.clone(),
-                request_host: header_str(&headers_snapshot, "host"),
-                status_code: StatusCode::FORBIDDEN.as_u16() as i32,
-                upstream: "".to_string(),
-                latency_ms: elapsed * 1000.0,
-                user_agent: header_str(&headers_snapshot, "user-agent"),
-                referer: header_str(&headers_snapshot, "referer"),
-            });
+                metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                    timestamp: chrono::Utc::now().timestamp(),
+                    listen_addr: node.clone(),
+                    client_ip: client_ip(&remote, &headers_snapshot),
+                    remote_ip: remote.ip().to_string(),
+                    method: method.as_str().to_string(),
+                    request_path: path.clone(),
+                    request_host: header_str(&headers_snapshot, "host"),
+                    status_code: StatusCode::FORBIDDEN.as_u16() as i32,
+                    upstream: "".to_string(),
+                    latency_ms: elapsed * 1000.0,
+                    user_agent: header_str(&headers_snapshot, "user-agent"),
+                    referer: header_str(&headers_snapshot, "referer"),
+                });
 
-            return resp;
+                return resp;
+            }
         }
     }
 
