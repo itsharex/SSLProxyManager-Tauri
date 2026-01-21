@@ -2,7 +2,7 @@ use crate::{access_control, config, metrics, ws_proxy, stream_proxy};
 use anyhow::{anyhow, Context, Result};
 use axum::{
     body::Body,
-    extract::{connect_info::ConnectInfo, FromRef, State},
+    extract::{connect_info::ConnectInfo, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::any,
@@ -11,11 +11,12 @@ use axum::{
 use parking_lot::RwLock;
 use reqwest::redirect::Policy;
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     net::SocketAddr,
     sync::Arc,
     time::Duration,
 };
+use dashmap::DashMap;
 
 const LOG_QUEUE_CAPACITY: usize = 10_000;
 
@@ -24,12 +25,40 @@ static LOG_TX: once_cell::sync::Lazy<RwLock<Option<tokio::sync::mpsc::Sender<Str
 
 static LOG_DROPPED: once_cell::sync::Lazy<std::sync::atomic::AtomicU64> =
     once_cell::sync::Lazy::new(|| std::sync::atomic::AtomicU64::new(0));
+
+// 预计算需要跳过的 header
+static SKIP_HEADERS: once_cell::sync::Lazy<HashSet<HeaderName>> = once_cell::sync::Lazy::new(|| {
+    let mut set = HashSet::new();
+    set.insert(axum::http::header::HOST);
+    set.insert(axum::http::header::CONNECTION);
+    set.insert(axum::http::header::ACCEPT_ENCODING);
+    set.insert(HeaderName::from_static("x-real-ip"));
+    set.insert(HeaderName::from_static("x-forwarded-for"));
+    set.insert(HeaderName::from_static("x-forwarded-proto"));
+    set
+});
+
+// 预计算 hop-by-hop headers
+static HOP_HEADERS: once_cell::sync::Lazy<HashSet<&'static str>> = once_cell::sync::Lazy::new(|| {
+    let mut set = HashSet::new();
+    set.insert("connection");
+    set.insert("keep-alive");
+    set.insert("proxy-authenticate");
+    set.insert("proxy-authorization");
+    set.insert("te");
+    set.insert("trailer");
+    set.insert("transfer-encoding");
+    set.insert("upgrade");
+    set
+});
+
 use tauri::Emitter;
 use tower::util::ServiceExt;
 use tower_http::services::ServeDir;
 use tracing::{error, info};
 
 static IS_RUNNING: RwLock<bool> = RwLock::new(false);
+
 struct ServerHandle {
     handle: tauri::async_runtime::JoinHandle<()>,
     shutdown_tx: tokio::sync::oneshot::Sender<()>,
@@ -45,7 +74,6 @@ impl ServerHandle {
 static SERVERS: RwLock<Vec<ServerHandle>> = RwLock::new(Vec::new());
 static LOGS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
-// 启动过程控制：要求所有 rules 都成功（你选的语义 B）
 static STARTING: RwLock<bool> = RwLock::new(false);
 static START_EXPECTED: RwLock<usize> = RwLock::new(0);
 static START_FAILED: RwLock<bool> = RwLock::new(false);
@@ -65,51 +93,23 @@ struct SmoothLbState {
     upstreams: Vec<SmoothUpstream>,
 }
 
-static UPSTREAM_LB: once_cell::sync::Lazy<RwLock<HashMap<String, Arc<RwLock<SmoothLbState>>>>> =
-    once_cell::sync::Lazy::new(|| RwLock::new(HashMap::new()));
+// 使用 DashMap 替代 RwLock<HashMap>，减少锁竞争
+static UPSTREAM_LB: once_cell::sync::Lazy<DashMap<String, Arc<RwLock<SmoothLbState>>>> =
+    once_cell::sync::Lazy::new(|| DashMap::new());
 
+// 优化后的 AppState：缓存常用配置，减少热路径上的配置克隆
 #[derive(Clone)]
 struct AppState {
     rule: config::ListenRule,
     client_follow: reqwest::Client,
     client_nofollow: reqwest::Client,
     app: tauri::AppHandle,
-}
-
-#[derive(Clone)]
-struct RuleState(Arc<config::ListenRule>);
-
-#[derive(Clone)]
-struct HttpClientFollow(reqwest::Client);
-
-#[derive(Clone)]
-struct HttpClientNoFollow(reqwest::Client);
-
-impl FromRef<AppState> for RuleState {
-    fn from_ref(input: &AppState) -> Self {
-        Self(Arc::new(input.rule.clone()))
-    }
-}
-
-impl FromRef<AppState> for HttpClientFollow {
-    fn from_ref(input: &AppState) -> Self {
-        Self(input.client_follow.clone())
-    }
-}
-
-impl FromRef<AppState> for HttpClientNoFollow {
-    fn from_ref(input: &AppState) -> Self {
-        Self(input.client_nofollow.clone())
-    }
-}
-
-#[derive(Clone)]
-struct AppHandleState(tauri::AppHandle);
-
-impl FromRef<AppState> for AppHandleState {
-    fn from_ref(input: &AppState) -> Self {
-        Self(input.app.clone())
-    }
+    // 缓存配置字段，避免每次请求都克隆整个 Config
+    listen_addr: Arc<str>,
+    stream_proxy: bool,
+    max_body_size: usize,
+    max_response_body_size: usize,
+    http_access_control_enabled: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -118,20 +118,47 @@ pub struct RuleStartErrorPayload {
     pub error: String,
 }
 
+// 请求上下文：统一管理请求相关数据，减少参数传递
+struct RequestContext {
+    client_ip: String,
+    started_at: std::time::Instant,
+    headers_snapshot: HeaderMap,
+    method: Method,
+    uri: Uri,
+    path: String,
+}
+
+impl RequestContext {
+    fn new(remote: SocketAddr, headers: &HeaderMap, method: Method, uri: Uri) -> Self {
+        let path = uri.path().to_string();
+        Self {
+            client_ip: access_control::client_ip_from_headers(&remote, headers),
+            started_at: std::time::Instant::now(),
+            headers_snapshot: headers.clone(),
+            method,
+            uri,
+            path,
+        }
+    }
+
+    #[inline]
+    fn elapsed_ms(&self) -> f64 {
+        self.started_at.elapsed().as_secs_f64() * 1000.0
+    }
+
+    #[inline]
+    fn elapsed_s(&self) -> f64 {
+        self.started_at.elapsed().as_secs_f64()
+    }
+}
+
 pub fn start_server(app: tauri::AppHandle) -> Result<()> {
-    // 启动 access log 异步写入任务（仅启动一次）
     init_log_task(app.clone());
 
-    // 启动 WS 独立监听（如果启用）。
-    // WS 的启动/失败目前不参与 HTTP rules 的启动汇总逻辑；如果端口占用，会在日志中提示。
     if let Err(e) = ws_proxy::start_ws_servers(app.clone()) {
         send_log(format!("启动 WS 监听器失败: {e}"));
     }
 
-    // 启动 Stream(TCP/UDP) 代理监听（如果启用）。
-    // Stream 的启动同样不参与 HTTP rules 的启动汇总逻辑；如果端口占用，会在日志中提示。
-    // 注意：async_runtime::spawn 要求 Future 是 Send；因此这里只捕获 stream 配置的 clone，
-    // 避免把整个 Config（可能间接携带 !Send 状态）带进异步任务。
     {
         let stream_cfg = config::get_config().stream.clone();
         let app2 = app.clone();
@@ -141,7 +168,7 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
             }
         });
     }
-    // 如果正在启动，直接返回（避免重复点击并发启动）
+
     {
         let starting = STARTING.read();
         if *starting {
@@ -149,7 +176,6 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
         }
     }
 
-    // 标记启动中，并初始化启动计数
     *STARTING.write() = true;
     *START_FAILED.write() = false;
 
@@ -159,7 +185,6 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
     *START_EXPECTED.write() = expected;
     *START_STARTED_COUNT.write() = 0;
 
-    // 没有任何 rule：视为停止态
     if expected == 0 {
         *IS_RUNNING.write() = false;
         *STARTING.write() = false;
@@ -168,7 +193,6 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
         return Ok(());
     }
 
-    // 提前发一个“stopped”，前端会进入等待态，避免误判成功
     let _ = app.emit("status", "stopped");
 
     let mut handles = Vec::new();
@@ -176,12 +200,9 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
     for rule in rules {
         let app_handle = app.clone();
         let listen_addr = rule.listen_addr.clone();
-        // 创建用于优雅停机的 oneshot 通道
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        
         let handle = tauri::async_runtime::spawn(async move {
-            // 只要 start_rule_server 通过了 bind 阶段，就认为该 rule 启动成功
-            // 先做一次 bind 预检：确保端口/证书等关键错误能在启动阶段暴露出来。
-            // 语义 B：任何 rule 预检失败 => 整体启动失败。
             if let Err(e) = precheck_rule(&rule).await {
                 error!("启动监听器失败({listen_addr}): {e}");
                 send_log(format!("启动监听器失败({listen_addr}): {e}"));
@@ -199,7 +220,6 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
                 return;
             }
 
-            // 预检通过：计数 + 如果全部通过则进入 running，并发出 status 事件
             {
                 let mut started = START_STARTED_COUNT.write();
                 *started += 1;
@@ -209,7 +229,7 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
                     *IS_RUNNING.write() = true;
                     *STARTING.write() = false;
                     let _ = app_handle.emit("status", "running");
-                    // 获取最新的配置来生成详细的启动日志
+                    
                     let final_cfg = config::get_config();
                     for r in &final_cfg.rules {
                         let routes_summary = r
@@ -233,23 +253,18 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
                 }
             }
 
-            // 正式启动：进入 serve loop（直到 stop_server abort）
             match start_rule_server(app_handle.clone(), rule, shutdown_rx).await {
-                Ok(()) => {
-                    // server 正常退出（一般不会发生，除非 stop_server abort 后）
-                }
+                Ok(()) => {}
                 Err(e) => {
                     error!("启动监听器失败({listen_addr}): {e}");
                     send_log(format!("启动监听器失败({listen_addr}): {e}"));
 
-                    // 通知前端：某个 rule 启动失败（例如端口占用）
                     let payload = RuleStartErrorPayload {
                         listen_addr,
                         error: e.to_string(),
                     };
                     let _ = app_handle.emit("server-start-error", payload);
 
-                    // 语义 B：任意 rule 失败 -> 整体失败
                     *START_FAILED.write() = true;
                     *IS_RUNNING.write() = false;
                     *STARTING.write() = false;
@@ -261,33 +276,22 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
     }
 
     *SERVERS.write() = handles;
-
-    // 这里不再设置 IS_RUNNING=true，也不提示“已启动”。
-    // 由每个 rule 真正 bind 成功后汇总决定。
     send_log("代理服务器启动中...".to_string());
     Ok(())
 }
 
 pub fn stop_server(app: tauri::AppHandle) -> Result<()> {
-    // 停止 WS 独立监听
     ws_proxy::stop_ws_servers();
-
-    // 停止 access log 异步任务：drop sender 让后台任务退出；下次 start 会重新 init
     *LOG_TX.write() = None;
 
-    // 停止 Stream(TCP/UDP) 代理监听
     tauri::async_runtime::spawn(async {
         stream_proxy::stop_stream_servers().await;
     });
 
-    // 无论当前状态如何，停止都要尽量清理启动中的状态
     *STARTING.write() = false;
     *START_FAILED.write() = false;
     *START_EXPECTED.write() = 0;
     *START_STARTED_COUNT.write() = 0;
-
-    // 无论 running 标志如何，都尽量 abort 掉已有的 listener 任务，确保“重启”能真正生效。
-    // 否则在某些状态机边界情况下（例如 running 标志未及时置位），会导致旧服务继续运行。
     *IS_RUNNING.write() = false;
 
     let handles = std::mem::take(&mut *SERVERS.write());
@@ -297,7 +301,6 @@ pub fn stop_server(app: tauri::AppHandle) -> Result<()> {
 
     let _ = app.emit("status", "stopped");
 
-    // 生成详细的停止日志（每个监听节点一条）
     let cfg = config::get_config();
     for r in &cfg.rules {
         let log_line = format!("[NODE {}] Server stopped", r.listen_addr);
@@ -317,8 +320,6 @@ pub fn is_starting() -> bool {
 }
 
 pub fn is_effectively_running() -> bool {
-    // is_running 在异步启动阶段可能仍为 false，因此这里把“启动中”也视为运行态，
-    // 以便托盘/按钮等 UI 不会出现与真实状态明显背离的情况。
     is_running() || is_starting()
 }
 
@@ -340,7 +341,6 @@ pub fn send_log(message: String) {
 }
 
 pub fn send_log_with_app(app: &tauri::AppHandle, message: String) {
-    // 写入内存（环形缓冲）
     {
         let mut logs = LOGS.write();
         logs.push(message.clone());
@@ -350,14 +350,12 @@ pub fn send_log_with_app(app: &tauri::AppHandle, message: String) {
         }
     }
 
-    // 推送前端（受配置控制）
     let cfg = config::get_config();
     if !cfg.show_realtime_logs {
         return;
     }
 
     if cfg.realtime_logs_only_errors {
-        // 非错误日志不推送
         let lower = message.to_ascii_lowercase();
         if !(lower.contains("error")
             || lower.contains("failed")
@@ -375,7 +373,6 @@ async fn precheck_rule(rule: &config::ListenRule) -> Result<()> {
     let addr = parse_listen_addr(&rule.listen_addr)?;
 
     if rule.ssl_enable {
-        // 证书/私钥读失败会直接返回错误
         let _ = axum_server::tls_rustls::RustlsConfig::from_pem_file(
             rule.cert_file.clone(),
             rule.key_file.clone(),
@@ -383,11 +380,9 @@ async fn precheck_rule(rule: &config::ListenRule) -> Result<()> {
         .await
         .with_context(|| "加载 TLS 证书/私钥失败")?;
 
-        // TLS bind 的预检：尝试 bind 后立刻 drop
         let listener = tokio::net::TcpListener::bind(addr).await?;
         drop(listener);
     } else {
-        // 非 TLS：尝试 bind 后立刻 drop
         let listener = tokio::net::TcpListener::bind(addr).await?;
         drop(listener);
     }
@@ -411,7 +406,7 @@ async fn start_rule_server(
             .pool_max_idle_per_host(cfg.upstream_pool_max_idle)
             .pool_idle_timeout(Duration::from_secs(cfg.upstream_pool_idle_timeout_sec))
             .tcp_keepalive(Duration::from_secs(60))
-            .tcp_nodelay(true)  // 降低小包延迟
+            .tcp_nodelay(true)
             .connect_timeout(Duration::from_millis(cfg.upstream_connect_timeout_ms))
             .timeout(Duration::from_millis(cfg.upstream_read_timeout_ms));
 
@@ -422,7 +417,6 @@ async fn start_rule_server(
         builder
     };
 
-    // 创建两个 client 实例：一个跟随重定向，一个不跟随
     let follow_builder = client_builder();
     let nofollow_builder = client_builder().redirect(Policy::none());
 
@@ -434,21 +428,21 @@ async fn start_rule_server(
         .build()
         .context("创建上游 HTTP client 失败")?;
 
+    // 缓存常用配置到 AppState
     let state = AppState {
         rule: rule.clone(),
         client_follow,
         client_nofollow,
         app: app.clone(),
+        listen_addr: Arc::from(rule.listen_addr.clone()),
+        stream_proxy: cfg.stream_proxy,
+        max_body_size: cfg.max_body_size,
+        max_response_body_size: cfg.max_response_body_size,
+        http_access_control_enabled: cfg.http_access_control_enabled,
     };
 
     let router = Router::new().route("/healthz", any(healthz));
-
-    // 统一由 proxy_handler 处理：
-    // - static_dir: 静态文件优先，页面路由（无扩展名）SPA 回退 index.html，资源缺失返回 404
-    // - upstreams: 仅在有 upstream 时才反代
     let app = router.fallback(any(proxy_handler)).with_state(state);
-
-    // 让 proxy_handler 能拿到真实远端地址（用于访问控制）
     let app = app.into_make_service_with_connect_info::<SocketAddr>();
 
     send_log(format!("监听地址: {} -> {}", rule.listen_addr, addr));
@@ -509,6 +503,7 @@ async fn healthz() -> impl IntoResponse {
     (StatusCode::OK, "OK")
 }
 
+#[inline]
 fn match_route<'a>(routes: &'a [config::Route], path: &str) -> Option<&'a config::Route> {
     routes
         .iter()
@@ -519,7 +514,6 @@ fn match_route<'a>(routes: &'a [config::Route], path: &str) -> Option<&'a config
 }
 
 fn upstream_signature(route: &config::Route) -> String {
-    // 用 url+weight 生成签名，配置变化时会触发状态重建
     let mut parts: Vec<String> = route
         .upstreams
         .iter()
@@ -539,32 +533,22 @@ fn pick_upstream_smooth(route: &config::Route) -> Option<String> {
 
     let route_id = route.id.as_deref().unwrap_or("").trim();
     if route_id.is_empty() {
-        // 理论上不会发生：保存配置时会补齐 id。
-        // 为避免出错，回退到第一个。
         return Some(route.upstreams[0].url.clone());
     }
 
     let sig = upstream_signature(route);
 
-    // route 粒度锁：map 只保存 Arc<RwLock<State>>，避免每次选 upstream 都拿全局写锁
-    let state_lock: Arc<RwLock<SmoothLbState>> = {
-        // 先尝试读锁命中
-        if let Some(s) = UPSTREAM_LB.read().get(route_id).cloned() {
-            s
-        } else {
-            // 未命中：写锁插入（只在首次出现 route_id 时发生）
-            let mut map = UPSTREAM_LB.write();
-            map.entry(route_id.to_string())
-                .or_insert_with(|| {
-                    Arc::new(RwLock::new(SmoothLbState {
-                        signature: String::new(),
-                        total_weight: 0,
-                        upstreams: Vec::new(),
-                    }))
-                })
-                .clone()
-        }
-    };
+    // 使用 DashMap：无需全局读锁，性能更好
+    let state_lock = UPSTREAM_LB
+        .entry(route_id.to_string())
+        .or_insert_with(|| {
+            Arc::new(RwLock::new(SmoothLbState {
+                signature: String::new(),
+                total_weight: 0,
+                upstreams: Vec::new(),
+            }))
+        })
+        .clone();
 
     let mut entry = state_lock.write();
 
@@ -585,7 +569,6 @@ fn pick_upstream_smooth(route: &config::Route) -> Option<String> {
         entry.upstreams = ups;
     }
 
-    // 平滑加权轮询：current += weight，选 current 最大者，选中者 current -= total
     let mut best_idx = 0usize;
     for i in 0..entry.upstreams.len() {
         let w = entry.upstreams[i].weight;
@@ -602,6 +585,7 @@ fn pick_upstream_smooth(route: &config::Route) -> Option<String> {
     Some(entry.upstreams[best_idx].url.clone())
 }
 
+#[inline]
 fn is_basic_auth_ok(
     rule: &config::ListenRule,
     route: Option<&config::Route>,
@@ -639,6 +623,7 @@ fn is_basic_auth_ok(
     s == expected
 }
 
+#[inline]
 fn header_str(headers: &HeaderMap, key: &str) -> String {
     headers
         .get(key)
@@ -647,39 +632,27 @@ fn header_str(headers: &HeaderMap, key: &str) -> String {
         .to_string()
 }
 
-fn client_ip(remote: &SocketAddr, headers: &HeaderMap) -> String {
-    access_control::client_ip_from_headers(remote, headers)
-}
-
-fn is_access_allowed(remote: &SocketAddr, headers: &HeaderMap, cfg: &config::Config) -> bool {
-    access_control::is_allowed(remote, headers, cfg)
-}
-
+#[inline]
 fn time_local_string() -> String {
-    // 形如 13/Jan/2026:23:07:40 +0800
     let now = chrono::Local::now();
     now.format("%y.%m.%d %H:%M:%S").to_string()
 }
 
+#[inline]
 fn request_line(method: &Method, uri: &Uri) -> String {
-    // HTTP 版本这里统一写 1.1（大多数客户端习惯）
     format!("{} {} HTTP/1.1", method.as_str(), uri)
 }
 
 fn format_access_log(
     node: &str,
-    headers: &HeaderMap,
-    method: &Method,
-    uri: &Uri,
+    ctx: &RequestContext,
     status: StatusCode,
-    elapsed: f64,
 ) -> String {
-    // access log 仍然优先记录转发头里的 IP；若无则显示 '-'（不影响数据库中的 client_ip）
-    let ip = header_str(headers, "x-forwarded-for");
+    let ip = header_str(&ctx.headers_snapshot, "x-forwarded-for");
     let ip = if ip != "-" {
         ip.split(',').next().unwrap_or("-").trim().to_string()
     } else {
-        let real = header_str(headers, "x-real-ip");
+        let real = header_str(&ctx.headers_snapshot, "x-real-ip");
         if real != "-" {
             real
         } else {
@@ -687,12 +660,10 @@ fn format_access_log(
         }
     };
     let time_local = time_local_string();
-    let req_line = request_line(method, uri);
-    let referer = header_str(headers, "referer");
-    let ua = header_str(headers, "user-agent");
+    let req_line = request_line(&ctx.method, &ctx.uri);
+    let referer = header_str(&ctx.headers_snapshot, "referer");
+    let ua = header_str(&ctx.headers_snapshot, "user-agent");
 
-    // 1b: 不显示 UPSTREAM 段，这里用 [-] 占位
-    // 2c: bytes 拿不到用 -
     format!(
         "[NODE {}] [-] {} - - [{}] \"{}\" {} - \"{}\" \"{}\" {:.3}s",
         node,
@@ -702,19 +673,22 @@ fn format_access_log(
         status.as_u16(),
         referer,
         ua,
-        elapsed
+        ctx.elapsed_s()
     )
 }
 
-fn push_log(_app: &tauri::AppHandle, line: String) {
-    // 异步写入：避免阻塞请求热路径
+// 延迟日志格式化：只在需要时才格式化
+fn push_log_lazy<F>(_app: &tauri::AppHandle, f: F)
+where
+    F: FnOnce() -> String,
+{
     if let Some(tx) = LOG_TX.read().as_ref() {
+        let line = f();
         if tx.try_send(line).is_err() {
-            // 队列满：丢弃新日志，避免内存无限增长
             LOG_DROPPED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
     } else {
-        // 极少数情况下（例如尚未 init），回退为同步写入内存
+        let line = f();
         let mut logs = LOGS.write();
         logs.push(line);
         if logs.len() > 3000 {
@@ -725,7 +699,6 @@ fn push_log(_app: &tauri::AppHandle, line: String) {
 }
 
 fn init_log_task(app: tauri::AppHandle) {
-    // 已初始化则跳过
     if LOG_TX.read().is_some() {
         return;
     }
@@ -751,207 +724,152 @@ fn init_log_task(app: tauri::AppHandle) {
 
 async fn proxy_handler(
     ConnectInfo(remote): ConnectInfo<SocketAddr>,
-    State(RuleState(rule)): State<RuleState>,
-    State(HttpClientFollow(client_follow)): State<HttpClientFollow>,
-    State(HttpClientNoFollow(client_nofollow)): State<HttpClientNoFollow>,
-    State(AppHandleState(app)): State<AppHandleState>,
+    State(state): State<AppState>,
     req: Request<Body>,
 ) -> Response {
-    let started_at = std::time::Instant::now();
-    let cfg = config::get_config();
+    let ctx = RequestContext::new(
+        remote,
+        req.headers(),
+        req.method().clone(),
+        req.uri().clone(),
+    );
 
-    let node = rule.listen_addr.clone();
-    let headers_snapshot = req.headers().clone();
-    let path = req.uri().path().to_string();
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-    let route = match_route(&rule.routes, &path);
+    let node = &*state.listen_addr;
+    let route = match_route(&state.rule.routes, &ctx.path);
 
-    // 0. 访问控制（优先级最高）
-    // allow_all_lan 取消勾选时：只有白名单 IP 可以访问
-    {
+    // 0. 访问控制
+    if state.http_access_control_enabled {
+        if metrics::is_ip_blacklisted(&ctx.client_ip) {
+            let status = StatusCode::FORBIDDEN;
+            push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
-        if cfg.http_access_control_enabled {
-        // 黑名单优先：命中直接拒绝
-        let client_ip_str = access_control::client_ip_from_headers(&remote, req.headers());
-
-        if metrics::is_ip_blacklisted(&client_ip_str) {
-            let mut resp = Response::new(Body::from("IP Forbidden"));
-            *resp.status_mut() = StatusCode::FORBIDDEN;
-
-            let elapsed = started_at.elapsed().as_secs_f64();
-            let line = format_access_log(
-                &node,
-                &headers_snapshot,
-                &method,
-                &uri,
-                StatusCode::FORBIDDEN,
-                elapsed,
-            );
-            push_log(&app, line);
-
-            metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+            metrics::try_enqueue_request_log(metrics::RequestLogInsert {
                 timestamp: chrono::Utc::now().timestamp(),
-                listen_addr: node.clone(),
-                client_ip: client_ip(&remote, &headers_snapshot),
+                listen_addr: node.to_string(),
+                client_ip: ctx.client_ip.clone(),
                 remote_ip: remote.ip().to_string(),
-                method: method.as_str().to_string(),
-                request_path: path.clone(),
-                request_host: header_str(&headers_snapshot, "host"),
-                status_code: StatusCode::FORBIDDEN.as_u16() as i32,
+                method: ctx.method.as_str().to_string(),
+                request_path: ctx.path.clone(),
+                request_host: header_str(&ctx.headers_snapshot, "host"),
+                status_code: status.as_u16() as i32,
                 upstream: "".to_string(),
-                latency_ms: elapsed * 1000.0,
-                user_agent: header_str(&headers_snapshot, "user-agent"),
-                referer: header_str(&headers_snapshot, "referer"),
+                latency_ms: ctx.elapsed_ms(),
+                user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+                referer: header_str(&ctx.headers_snapshot, "referer"),
             });
 
-            return resp;
+            return (status, "IP Forbidden").into_response();
         }
 
-        if !is_access_allowed(&remote, req.headers(), &cfg) {
-            let mut resp = Response::new(Body::from("Forbidden"));
-            *resp.status_mut() = StatusCode::FORBIDDEN;
+        let cfg = config::get_config();
+        if !access_control::is_allowed(&remote, req.headers(), &cfg) {
+            let status = StatusCode::FORBIDDEN;
+            push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
-            let elapsed = started_at.elapsed().as_secs_f64();
-            let line = format_access_log(
-                &node,
-                &headers_snapshot,
-                &method,
-                &uri,
-                StatusCode::FORBIDDEN,
-                elapsed,
-            );
-            push_log(&app, line);
-
-            metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+            metrics::try_enqueue_request_log(metrics::RequestLogInsert {
                 timestamp: chrono::Utc::now().timestamp(),
-                listen_addr: node.clone(),
-                client_ip: client_ip(&remote, &headers_snapshot),
+                listen_addr: node.to_string(),
+                client_ip: ctx.client_ip.clone(),
                 remote_ip: remote.ip().to_string(),
-                method: method.as_str().to_string(),
-                request_path: path.clone(),
-                request_host: header_str(&headers_snapshot, "host"),
-                status_code: StatusCode::FORBIDDEN.as_u16() as i32,
+                method: ctx.method.as_str().to_string(),
+                request_path: ctx.path.clone(),
+                request_host: header_str(&ctx.headers_snapshot, "host"),
+                status_code: status.as_u16() as i32,
                 upstream: "".to_string(),
-                latency_ms: elapsed * 1000.0,
-                user_agent: header_str(&headers_snapshot, "user-agent"),
-                referer: header_str(&headers_snapshot, "referer"),
+                latency_ms: ctx.elapsed_ms(),
+                user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+                referer: header_str(&ctx.headers_snapshot, "referer"),
             });
 
-            return resp;
-            }
+            return (status, "Forbidden").into_response();
         }
     }
 
-    // 1. 检查 Basic Auth（如果启用）
-    if !is_basic_auth_ok(&rule, route, req.headers()) {
+    // 1. 检查 Basic Auth
+    if !is_basic_auth_ok(&state.rule, route, req.headers()) {
+        let status = StatusCode::UNAUTHORIZED;
+        push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
+
+        metrics::try_enqueue_request_log(metrics::RequestLogInsert {
+            timestamp: chrono::Utc::now().timestamp(),
+            listen_addr: node.to_string(),
+            client_ip: ctx.client_ip.clone(),
+            remote_ip: remote.ip().to_string(),
+            method: ctx.method.as_str().to_string(),
+            request_path: ctx.path.clone(),
+            request_host: header_str(&ctx.headers_snapshot, "host"),
+            status_code: status.as_u16() as i32,
+            upstream: "".to_string(),
+            latency_ms: ctx.elapsed_ms(),
+            user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+            referer: header_str(&ctx.headers_snapshot, "referer"),
+        });
+
         let mut resp = Response::new(Body::from("Unauthorized"));
-        *resp.status_mut() = StatusCode::UNAUTHORIZED;
+        *resp.status_mut() = status;
         resp.headers_mut().insert(
             axum::http::header::WWW_AUTHENTICATE,
             HeaderValue::from_static("Basic realm=\"SSLProxyManager\""),
         );
-
-        let elapsed = started_at.elapsed().as_secs_f64();
-        let line = format_access_log(
-            &node,
-            &headers_snapshot,
-            &method,
-            &uri,
-            StatusCode::UNAUTHORIZED,
-            elapsed,
-        );
-        push_log(&app, line);
-
-        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
-            timestamp: chrono::Utc::now().timestamp(),
-            listen_addr: node.clone(),
-            client_ip: client_ip(&remote, &headers_snapshot),
-            remote_ip: remote.ip().to_string(),
-            method: method.as_str().to_string(),
-            request_path: path.clone(),
-            request_host: header_str(&headers_snapshot, "host"),
-            status_code: StatusCode::UNAUTHORIZED.as_u16() as i32,
-            upstream: "".to_string(),
-            latency_ms: elapsed * 1000.0,
-            user_agent: header_str(&headers_snapshot, "user-agent"),
-            referer: header_str(&headers_snapshot, "referer"),
-        });
-
         return resp;
     }
 
     let Some(route) = route else {
-        let elapsed = started_at.elapsed().as_secs_f64();
-        let line = format_access_log(
-            &node,
-            &headers_snapshot,
-            &method,
-            &uri,
-            StatusCode::NOT_FOUND,
-            elapsed,
-        );
-        push_log(&app, line);
+        let status = StatusCode::NOT_FOUND;
+        push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
-        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+        metrics::try_enqueue_request_log(metrics::RequestLogInsert {
             timestamp: chrono::Utc::now().timestamp(),
-            listen_addr: node.clone(),
-            client_ip: client_ip(&remote, &headers_snapshot),
+            listen_addr: node.to_string(),
+            client_ip: ctx.client_ip.clone(),
             remote_ip: remote.ip().to_string(),
-            method: method.as_str().to_string(),
-            request_path: path.clone(),
-            request_host: header_str(&headers_snapshot, "host"),
-            status_code: StatusCode::NOT_FOUND.as_u16() as i32,
+            method: ctx.method.as_str().to_string(),
+            request_path: ctx.path.clone(),
+            request_host: header_str(&ctx.headers_snapshot, "host"),
+            status_code: status.as_u16() as i32,
             upstream: "".to_string(),
-            latency_ms: elapsed * 1000.0,
-            user_agent: header_str(&headers_snapshot, "user-agent"),
-            referer: header_str(&headers_snapshot, "referer"),
+            latency_ms: ctx.elapsed_ms(),
+            user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+            referer: header_str(&ctx.headers_snapshot, "referer"),
         });
 
-        return (StatusCode::NOT_FOUND, "No route").into_response();
+        return (status, "No route").into_response();
     };
 
-    // 2. 优先处理静态资源（如果配置了 static_dir）
+    // 2. 优先处理静态资源
     if let Some(dir) = route.static_dir.as_ref() {
-        // 构建 ServeDir 实例
         let serve_dir = ServeDir::new(dir);
 
-        // 处理请求并获取响应
         match serve_dir.oneshot(req).await {
             Ok(response) => {
                 let status = response.status();
-                // ServeDir 的响应体类型与 axum::body::Body 不同，用 Body::new 包一层即可
                 let response = response.map(Body::new);
 
-                // 如果静态文件存在（200-299）或重定向，记录日志并返回
                 if status.is_success() || status.is_redirection() {
-                    let elapsed = started_at.elapsed().as_secs_f64();
-                    let line =
-                        format_access_log(&node, &headers_snapshot, &method, &uri, status, elapsed);
-                    push_log(&app, line);
+                    push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
-                    metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                    metrics::try_enqueue_request_log(metrics::RequestLogInsert {
                         timestamp: chrono::Utc::now().timestamp(),
-                        listen_addr: node.clone(),
-                        client_ip: client_ip(&remote, &headers_snapshot),
+                        listen_addr: node.to_string(),
+                        client_ip: ctx.client_ip.clone(),
                         remote_ip: remote.ip().to_string(),
-                        method: method.as_str().to_string(),
-                        request_path: path.clone(),
-                        request_host: header_str(&headers_snapshot, "host"),
+                        method: ctx.method.as_str().to_string(),
+                        request_path: ctx.path.clone(),
+                        request_host: header_str(&ctx.headers_snapshot, "host"),
                         status_code: status.as_u16() as i32,
                         upstream: "".to_string(),
-                        latency_ms: elapsed * 1000.0,
-                        user_agent: header_str(&headers_snapshot, "user-agent"),
-                        referer: header_str(&headers_snapshot, "referer"),
+                        latency_ms: ctx.elapsed_ms(),
+                        user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+                        referer: header_str(&ctx.headers_snapshot, "referer"),
                     });
 
                     return response;
                 }
 
-                // 如果是 404 且是 GET/HEAD 请求，检查是否是 SPA 回退场景
+                // SPA 回退
                 if status == StatusCode::NOT_FOUND
-                    && (method == Method::GET || method == Method::HEAD)
-                    && !is_asset_path(&path)
+                    && (ctx.method == Method::GET || ctx.method == Method::HEAD)
+                    && !is_asset_path(&ctx.path)
                 {
                     if let Ok(bytes) =
                         tokio::fs::read(std::path::Path::new(dir).join("index.html")).await
@@ -962,137 +880,102 @@ async fn proxy_handler(
                             HeaderValue::from_static("text/html; charset=utf-8"),
                         );
 
-                        // SPA 回退：按 200 记录请求日志
-                        let elapsed = started_at.elapsed().as_secs_f64();
-                        let line = format_access_log(
-                            &node,
-                            &headers_snapshot,
-                            &method,
-                            &uri,
-                            StatusCode::OK,
-                            elapsed,
-                        );
-                        push_log(&app, line);
+                        let status = StatusCode::OK;
+                        push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
-                        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                        metrics::try_enqueue_request_log(metrics::RequestLogInsert {
                             timestamp: chrono::Utc::now().timestamp(),
-                            listen_addr: node.clone(),
-                            client_ip: client_ip(&remote, &headers_snapshot),
+                            listen_addr: node.to_string(),
+                            client_ip: ctx.client_ip.clone(),
                             remote_ip: remote.ip().to_string(),
-                            method: method.as_str().to_string(),
-                            request_path: path.clone(),
-                            request_host: header_str(&headers_snapshot, "host"),
-                            status_code: StatusCode::OK.as_u16() as i32,
+                            method: ctx.method.as_str().to_string(),
+                            request_path: ctx.path.clone(),
+                            request_host: header_str(&ctx.headers_snapshot, "host"),
+                            status_code: status.as_u16() as i32,
                             upstream: "".to_string(),
-                            latency_ms: elapsed * 1000.0,
-                            user_agent: header_str(&headers_snapshot, "user-agent"),
-                            referer: header_str(&headers_snapshot, "referer"),
+                            latency_ms: ctx.elapsed_ms(),
+                            user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+                            referer: header_str(&ctx.headers_snapshot, "referer"),
                         });
 
                         return resp;
                     }
                 }
 
-                // 其他情况返回 ServeDir 的原始结果（例如 404/403）
                 return response;
             }
-            Err(_) => {
-                // ServeDir 内部错误，继续处理
-            }
+            Err(_) => {}
         }
 
-        // 静态资源处理失败，且不是 SPA 回退场景，返回 404
-        let elapsed = started_at.elapsed().as_secs_f64();
-        let line = format_access_log(
-            &node,
-            &headers_snapshot,
-            &method,
-            &uri,
-            StatusCode::NOT_FOUND,
-            elapsed,
-        );
-        push_log(&app, line);
+        let status = StatusCode::NOT_FOUND;
+        push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
-        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+        metrics::try_enqueue_request_log(metrics::RequestLogInsert {
             timestamp: chrono::Utc::now().timestamp(),
-            listen_addr: node.clone(),
-            client_ip: client_ip(&remote, &headers_snapshot),
+            listen_addr: node.to_string(),
+            client_ip: ctx.client_ip.clone(),
             remote_ip: remote.ip().to_string(),
-            method: method.as_str().to_string(),
-            request_path: path.clone(),
-            request_host: header_str(&headers_snapshot, "host"),
-            status_code: StatusCode::NOT_FOUND.as_u16() as i32,
+            method: ctx.method.as_str().to_string(),
+            request_path: ctx.path.clone(),
+            request_host: header_str(&ctx.headers_snapshot, "host"),
+            status_code: status.as_u16() as i32,
             upstream: "".to_string(),
-            latency_ms: elapsed * 1000.0,
-            user_agent: header_str(&headers_snapshot, "user-agent"),
-            referer: header_str(&headers_snapshot, "referer"),
+            latency_ms: ctx.elapsed_ms(),
+            user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+            referer: header_str(&ctx.headers_snapshot, "referer"),
         });
 
-        return (StatusCode::NOT_FOUND, "Static file not found").into_response();
+        return (status, "Static file not found").into_response();
     }
 
-    // 3. 处理反代逻辑（如果有 upstream）
+    // 3. 处理反代逻辑
     if let Some(upstream_url) = pick_upstream_smooth(route) {
         let target = match build_upstream_url(
             &upstream_url,
             route.path.as_deref(),
             route.proxy_pass_path.as_deref(),
-            &uri,
+            &ctx.uri,
         ) {
             Ok(u) => u,
             Err(e) => {
-                let elapsed = started_at.elapsed().as_secs_f64();
-                let line = format_access_log(
-                    &node,
-                    &headers_snapshot,
-                    &method,
-                    &uri,
-                    StatusCode::BAD_GATEWAY,
-                    elapsed,
-                );
-                push_log(&app, line);
+                let status = StatusCode::BAD_GATEWAY;
+                push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
-                metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+                metrics::try_enqueue_request_log(metrics::RequestLogInsert {
                     timestamp: chrono::Utc::now().timestamp(),
-                    listen_addr: node.clone(),
-                    client_ip: client_ip(&remote, &headers_snapshot),
+                    listen_addr: node.to_string(),
+                    client_ip: ctx.client_ip.clone(),
                     remote_ip: remote.ip().to_string(),
-                    method: method.as_str().to_string(),
-                    request_path: path.clone(),
-                    request_host: header_str(&headers_snapshot, "host"),
-                    status_code: StatusCode::BAD_GATEWAY.as_u16() as i32,
+                    method: ctx.method.as_str().to_string(),
+                    request_path: ctx.path.clone(),
+                    request_host: header_str(&ctx.headers_snapshot, "host"),
+                    status_code: status.as_u16() as i32,
                     upstream: upstream_url.clone(),
-                    latency_ms: elapsed * 1000.0,
-                    user_agent: header_str(&headers_snapshot, "user-agent"),
-                    referer: header_str(&headers_snapshot, "referer"),
+                    latency_ms: ctx.elapsed_ms(),
+                    user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+                    referer: header_str(&ctx.headers_snapshot, "referer"),
                 });
 
-                return (StatusCode::BAD_GATEWAY, format!("bad upstream url: {e}")).into_response();
+                return (status, format!("bad upstream url: {e}")).into_response();
             }
         };
 
         let client = if route.follow_redirects {
-            client_follow.clone()
+            state.client_follow.clone()
         } else {
-            client_nofollow.clone()
+            state.client_nofollow.clone()
         };
 
-        // 0) 拆分 request，避免 into_body 后再使用 req
         let (req_parts, req_body_axum) = req.into_parts();
         let inbound_headers = req_parts.headers.clone();
         let method_up = req_parts.method.clone();
 
-        // 1) 读取请求体（用于 req_body_size & 避免 req move 问题）
-        // 热路径只读一次配置（避免频繁 clone 整个 Config）
-        let stream_proxy = cfg.stream_proxy;
-        let max_body_size = cfg.max_body_size;
-        let max_response_body_size = cfg.max_response_body_size;
-
-        let (reqwest_body, req_body_size) = if stream_proxy {
+        // 读取请求体
+        let (reqwest_body, req_body_size) = if state.stream_proxy {
             let body_stream = req_body_axum.into_data_stream();
             (reqwest::Body::wrap_stream(body_stream), None)
         } else {
-            let bytes = match axum::body::to_bytes(req_body_axum, max_body_size).await {
+            let bytes = match axum::body::to_bytes(req_body_axum, state.max_body_size).await {
                 Ok(b) => b,
                 Err(e) => {
                     return (
@@ -1106,35 +989,22 @@ async fn proxy_handler(
             (reqwest::Body::from(bytes), Some(len))
         };
 
-        // 2) 构造最终 headers（覆盖语义，避免重复 header 导致上游 400）
+        // 构造最终 headers（使用预计算的 SKIP_HEADERS）
         let mut final_headers = HeaderMap::new();
 
-        // 2.1) 先复制入站 headers（跳过 hop-by-hop；跳过将由代理统一控制/覆盖的头）
         for (k, v) in inbound_headers.iter() {
-            // 这里不要做 to_ascii_lowercase 分配；用 HeaderName 常量比较即可
-            if *k == axum::http::header::HOST
-                || *k == axum::http::header::CONNECTION
-                || *k == axum::http::header::ACCEPT_ENCODING
-                || *k == HeaderName::from_static("x-real-ip")
-                || *k == HeaderName::from_static("x-forwarded-for")
-                || *k == HeaderName::from_static("x-forwarded-proto")
-            {
+            if SKIP_HEADERS.contains(k) || is_hop_header_fast(k.as_str()) {
                 continue;
             }
-
-            if is_hop_header(k.as_str()) {
-                continue;
-            }
-
             final_headers.append(k.clone(), v.clone());
         }
 
-        // 2.2) Host：默认沿用入站 Host（如需改 Host 请在 set_headers 里显式设置 Host）
+        // Host header
         if let Some(h) = inbound_headers.get(axum::http::header::HOST) {
             final_headers.insert(axum::http::header::HOST, h.clone());
         }
 
-        // 2.3) 常用转发头
+        // 转发头
         {
             let remote_ip = remote.ip().to_string();
             if let Ok(v) = HeaderValue::from_str(&remote_ip) {
@@ -1159,31 +1029,26 @@ async fn proxy_handler(
 
         final_headers.insert(
             HeaderName::from_static("x-forwarded-proto"),
-            HeaderValue::from_static(if rule.ssl_enable { "https" } else { "http" }),
+            HeaderValue::from_static(if state.rule.ssl_enable { "https" } else { "http" }),
         );
 
-        // 2.4) 对齐 nginx 常见实践：禁用压缩
         final_headers.insert(axum::http::header::ACCEPT_ENCODING, HeaderValue::from_static(""));
 
-        // 2.5) Content-Type：若入站有且 set_headers 未覆盖，则保留
         if !final_headers.contains_key(axum::http::header::CONTENT_TYPE) {
             if let Some(ct) = inbound_headers.get(axum::http::header::CONTENT_TYPE) {
                 final_headers.insert(axum::http::header::CONTENT_TYPE, ct.clone());
             }
         }
 
-        // 2.6) 应用 set_headers（覆盖语义：insert）
+        // set_headers
         if let Some(map) = route.set_headers.as_ref() {
             for (k, v) in map {
                 let key = k.trim();
-                if key.is_empty() {
-                    continue;
-                }
-                if is_hop_header(key) {
+                if key.is_empty() || is_hop_header_fast(key) {
                     continue;
                 }
 
-                let expanded = expand_proxy_header_value(v, &remote, &inbound_headers, rule.ssl_enable);
+                let expanded = expand_proxy_header_value(v, &remote, &inbound_headers, state.rule.ssl_enable);
 
                 let name = match HeaderName::from_bytes(key.as_bytes()) {
                     Ok(n) => n,
@@ -1204,17 +1069,12 @@ async fn proxy_handler(
             }
         }
 
-        // 2.7) 若启用了 BasicAuth 且不允许向上游转发，则移除 Authorization
-        // 注意：未启用 BasicAuth 时，Authorization 往往是业务鉴权头，必须保留。
-        let will_remove_auth = rule.basic_auth_enable && !rule.basic_auth_forward_header;
-
-        if will_remove_auth {
+        // 移除 Authorization（如需要）
+        if state.rule.basic_auth_enable && !state.rule.basic_auth_forward_header {
             final_headers.remove(axum::http::header::AUTHORIZATION);
         }
 
-        let _after_remove_has_auth = final_headers.contains_key(axum::http::header::AUTHORIZATION);
-
-        // 3) 构造并发送上游请求（build 后清空并写入 final_headers，彻底去重）
+        // 构造上游请求
         let mut builder = client.request(method_up, target.clone());
         builder = builder.body(reqwest_body);
 
@@ -1230,22 +1090,11 @@ async fn proxy_handler(
         };
 
         upstream_req.headers_mut().clear();
-        upstream_req.headers_mut().extend(final_headers.clone());
+        upstream_req.headers_mut().extend(final_headers);
 
         let outbound_headers_snapshot = upstream_req.headers().clone();
 
-        let inbound_headers_line = inbound_headers
-            .iter()
-            .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("[invalid utf8]")))
-            .collect::<Vec<_>>()
-            .join(" ## ");
-
-        let outbound_headers_line = outbound_headers_snapshot
-            .iter()
-            .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("[invalid utf8]")))
-            .collect::<Vec<_>>()
-            .join(" ## ");
-
+        // 发送请求
         let resp = match client.execute(upstream_req).await {
             Ok(r) => r,
             Err(e) => {
@@ -1258,30 +1107,27 @@ async fn proxy_handler(
         };
 
         let status = resp.status();
-        let elapsed = started_at.elapsed().as_secs_f64();
-        let line = format_access_log(
-            &node,
-            &headers_snapshot,
-            &method,
-            &uri,
-            StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
-            elapsed,
-        );
-        push_log(&app, line);
+        push_log_lazy(&state.app, || {
+            format_access_log(
+                node,
+                &ctx,
+                StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
+            )
+        });
 
-        metrics::try_enqueue_request_log(crate::metrics::RequestLogInsert {
+        metrics::try_enqueue_request_log(metrics::RequestLogInsert {
             timestamp: chrono::Utc::now().timestamp(),
-            listen_addr: node.clone(),
-            client_ip: client_ip(&remote, &headers_snapshot),
+            listen_addr: node.to_string(),
+            client_ip: ctx.client_ip.clone(),
             remote_ip: remote.ip().to_string(),
-            method: method.as_str().to_string(),
-            request_path: path.clone(),
-            request_host: header_str(&headers_snapshot, "host"),
+            method: ctx.method.as_str().to_string(),
+            request_path: ctx.path.clone(),
+            request_host: header_str(&ctx.headers_snapshot, "host"),
             status_code: status.as_u16() as i32,
             upstream: target.clone(),
-            latency_ms: elapsed * 1000.0,
-            user_agent: header_str(&headers_snapshot, "user-agent"),
-            referer: header_str(&headers_snapshot, "referer"),
+            latency_ms: ctx.elapsed_ms(),
+            user_agent: header_str(&ctx.headers_snapshot, "user-agent"),
+            referer: header_str(&ctx.headers_snapshot, "referer"),
         });
 
         let mut out = Response::new(Body::empty());
@@ -1289,18 +1135,17 @@ async fn proxy_handler(
             StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
 
         for (k, v) in resp.headers().iter() {
-            if is_hop_header(k.as_str()) {
+            if is_hop_header_fast(k.as_str()) {
                 continue;
             }
             out.headers_mut().insert(k.clone(), v.clone());
         }
 
-        // 根据配置决定是否流式转发响应体
-        if stream_proxy {
+        // 响应体处理
+        if state.stream_proxy {
             let stream = resp.bytes_stream();
             *out.body_mut() = Body::from_stream(stream);
         } else {
-            // 非流式：限制最大响应体大小，避免一次性读入超大响应导致内存爆
             let bytes = match resp.bytes().await {
                 Ok(b) => b,
                 Err(e) => {
@@ -1312,12 +1157,12 @@ async fn proxy_handler(
                 }
             };
 
-            if max_response_body_size > 0 && bytes.len() > max_response_body_size {
+            if state.max_response_body_size > 0 && bytes.len() > state.max_response_body_size {
                 return (
                     StatusCode::BAD_GATEWAY,
                     format!(
                         "upstream body too large (limit={} bytes)",
-                        max_response_body_size
+                        state.max_response_body_size
                     ),
                 )
                     .into_response();
@@ -1326,12 +1171,24 @@ async fn proxy_handler(
             *out.body_mut() = Body::from(bytes);
         }
 
-        // 仅在错误时记录反代细节，降低高 QPS 下日志/锁开销
+        // 仅错误时记录详细日志
         if !status.is_success() {
+            let inbound_headers_line = inbound_headers
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("[invalid utf8]")))
+                .collect::<Vec<_>>()
+                .join(" ## ");
+
+            let outbound_headers_line = outbound_headers_snapshot
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("[invalid utf8]")))
+                .collect::<Vec<_>>()
+                .join(" ## ");
+
             send_log(format!(
                 "反代错误(IN): {} {} -> {} status={} | inbound_headers=[{}]",
-                method.as_str(),
-                uri,
+                ctx.method.as_str(),
+                ctx.uri,
                 target,
                 status.as_u16(),
                 inbound_headers_line
@@ -1339,8 +1196,8 @@ async fn proxy_handler(
 
             send_log(format!(
                 "反代错误(OUT): {} {} -> {} status={} | outbound_headers=[{}] | req_body_size={}",
-                method.as_str(),
-                uri,
+                ctx.method.as_str(),
+                ctx.uri,
                 target,
                 status.as_u16(),
                 outbound_headers_line,
@@ -1351,7 +1208,6 @@ async fn proxy_handler(
         return out;
     }
 
-    // 既没有静态目录也没有上游，返回 404
     (
         StatusCode::NOT_FOUND,
         "No static directory or upstream configured",
@@ -1383,7 +1239,6 @@ fn build_upstream_url(
                 out_path = "/".to_string();
             }
 
-            // 拼接时处理斜杠，避免出现 // 或缺少 /
             let suffix = suffix.strip_prefix('/').unwrap_or(suffix);
             if out_path.ends_with('/') {
                 new_path = if suffix.is_empty() {
@@ -1413,20 +1268,15 @@ fn build_upstream_url(
     Ok(base)
 }
 
+#[inline]
 fn is_asset_path(path: &str) -> bool {
     path.contains('.') || path.starts_with("/assets/") || path.starts_with("/static/")
 }
 
-fn is_hop_header(name: &str) -> bool {
-    // 这里是热路径：避免 to_ascii_lowercase 分配
-    name.eq_ignore_ascii_case("connection")
-        || name.eq_ignore_ascii_case("keep-alive")
-        || name.eq_ignore_ascii_case("proxy-authenticate")
-        || name.eq_ignore_ascii_case("proxy-authorization")
-        || name.eq_ignore_ascii_case("te")
-        || name.eq_ignore_ascii_case("trailer")
-        || name.eq_ignore_ascii_case("transfer-encoding")
-        || name.eq_ignore_ascii_case("upgrade")
+// 使用预计算的 HashSet，性能更好
+#[inline]
+fn is_hop_header_fast(name: &str) -> bool {
+    HOP_HEADERS.contains(&name.to_ascii_lowercase().as_str())
 }
 
 fn expand_proxy_header_value(
@@ -1437,13 +1287,9 @@ fn expand_proxy_header_value(
 ) -> String {
     let mut out = raw.to_string();
 
-    // $remote_addr: 与 nginx 语义接近，取客户端 IP
     out = out.replace("$remote_addr", &remote.ip().to_string());
-
-    // $scheme: 由监听规则推断
     out = out.replace("$scheme", if is_tls { "https" } else { "http" });
 
-    // $proxy_add_x_forwarded_for: 在已有 X-Forwarded-For 基础上追加 remote.ip
     if out.contains("$proxy_add_x_forwarded_for") {
         let remote_ip = remote.ip().to_string();
         let prior = inbound_headers
@@ -1462,4 +1308,3 @@ fn expand_proxy_header_value(
 
     out
 }
-

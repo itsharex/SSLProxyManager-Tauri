@@ -126,10 +126,12 @@ pub async fn get_listen_addrs() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn query_historical_metrics(
+pub async fn query_historical_metrics(
     req: metrics::QueryMetricsRequest,
 ) -> Result<metrics::QueryMetricsResponse, String> {
-    metrics::query_historical_metrics(req).map_err(|e| e.to_string())
+    metrics::query_historical_metrics(req)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
