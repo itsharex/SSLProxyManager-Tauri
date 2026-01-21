@@ -25,7 +25,10 @@
         </el-form-item>
 
         <el-form-item label="监听地址">
-          <el-input v-model="searchForm.listenAddr" placeholder="留空表示全部" style="width: 200px;" clearable />
+          <el-select v-model="searchForm.listenAddr" placeholder="全部" style="width: 200px;" clearable filterable>
+            <el-option label="全部" value="" />
+            <el-option v-for="a in listenAddrs" :key="a" :label="a" :value="a" />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="上游地址">
@@ -126,7 +129,7 @@ import { ElMessage, ElConfigProvider, ElMessageBox } from 'element-plus'
 import { Lock } from '@element-plus/icons-vue'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 // @ts-ignore
-import { QueryRequestLogs, AddBlacklistEntry } from '../api'
+import { GetListenAddrs, QueryRequestLogs, AddBlacklistEntry } from '../api'
 
 interface RequestLog {
   id: number
@@ -147,6 +150,7 @@ interface RequestLog {
 }
 
 const dateRange = ref<[number, number] | null>(null)
+const listenAddrs = ref<string[]>([])
 
 // 日期快捷选项
 const dateShortcuts = [
@@ -456,7 +460,17 @@ onMounted(() => {
   const endTime = new Date()
   const startTime = new Date(endTime.getTime() - 60 * 60 * 1000)
   dateRange.value = [startTime.getTime(), endTime.getTime()]
-  
+
+  // 加载监听地址列表（用于下拉框）
+  GetListenAddrs()
+    .then((addrs: any) => {
+      listenAddrs.value = Array.isArray(addrs) ? addrs : []
+    })
+    .catch((err: any) => {
+      console.error('获取监听地址列表失败:', err)
+      listenAddrs.value = []
+    })
+
   // 禁止拖动选中的文本
   nextTick(() => {
     const cardElement = configCardRef.value?.$el as HTMLElement
