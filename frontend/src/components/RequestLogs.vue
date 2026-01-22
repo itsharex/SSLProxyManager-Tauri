@@ -1,6 +1,6 @@
 <!-- frontend/src/components/RequestLogs.vue -->
 <template>
-  <el-card ref="configCardRef" class="config-card config-page" shadow="hover">
+  <el-card ref="configCardRef" class="config-page" shadow="never">
     <template #header>
       <h3>请求记录查询</h3>
     </template>
@@ -499,23 +499,27 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.config-card {
+.config-page {
   height: 100%;
-  overflow-y: auto;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
 }
 
-.config-card :deep(.el-card__header) {
+.config-page :deep(.el-card__header) {
   border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+
+.config-page :deep(.el-card__body) {
   padding: 20px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.config-card :deep(.el-card__body) {
-  padding: 24px;
-}
-
-.config-card h3 {
+.config-page h3 {
   font-size: 24px;
   font-weight: 700;
   color: var(--text);
@@ -529,12 +533,24 @@ onBeforeUnmount(() => {
 
 .search-card {
   margin-bottom: 20px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+}
+
+.search-card :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+
+.el-table {
+  flex: 1;
+  min-height: 0;
 }
 
 .pagination {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 </style>

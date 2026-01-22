@@ -204,23 +204,22 @@ defineExpose({
 </script>
 
 <style scoped>
-.config-card {
+.config-page {
   height: 100%;
   overflow-y: auto;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
 }
 
-.config-card :deep(.el-card__header) {
+.config-page :deep(.el-card__header) {
   border-bottom: 1px solid var(--border);
-  padding: 20px;
+  padding: 16px 20px;
 }
 
-.config-card :deep(.el-card__body) {
+.config-page :deep(.el-card__body) {
   padding: 24px;
+  max-width: 800px;
 }
 
-.config-card h3 {
+.config-page h3 {
   font-size: 24px;
   font-weight: 700;
   color: var(--text);
@@ -232,19 +231,34 @@ defineExpose({
   margin: 0;
 }
 
+.el-form-item {
+  margin-bottom: 24px;
+}
+
+:deep(.el-form-item__content) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .hint {
-  margin-left: 12px;
   font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
-.info-card {
-  margin-top: 20px;
-  border-radius: 14px;
+.status-card, .info-card {
+  margin-top: 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--input-bg);
 }
 
+.status-card :deep(.el-card__header),
 .info-card :deep(.el-card__header) {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
+  font-weight: 600;
 }
 
 .info-list {
@@ -259,23 +273,7 @@ defineExpose({
   margin-bottom: 8px;
 }
 
-.status-card {
-  margin-top: 20px;
-  margin-bottom: 20px;
-  border-radius: 14px;
-}
-
-.status-card :deep(.el-card__header) {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.status-content {
-  margin-bottom: 10px;
-}
-
 .status-detail {
-  margin-top: 10px;
   font-size: 13px;
   line-height: 1.8;
 }
@@ -286,14 +284,10 @@ defineExpose({
 
 .error-hint {
   color: var(--el-color-danger);
-  font-size: 12px;
-  margin-top: 8px;
 }
 
 .info-hint {
   color: var(--el-color-info);
-  font-size: 12px;
-  margin-top: 8px;
   font-style: italic;
 }
 </style>

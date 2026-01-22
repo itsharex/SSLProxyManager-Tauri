@@ -185,20 +185,19 @@ defineExpose({
 </script>
 
 <style scoped>
-.config-card {
+.config-page {
   height: 100%;
   overflow-y: auto;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
 }
 
-.config-card :deep(.el-card__header) {
+.config-page :deep(.el-card__header) {
   border-bottom: 1px solid var(--border);
-  padding: 20px;
+  padding: 16px 20px;
 }
 
-.config-card :deep(.el-card__body) {
+.config-page :deep(.el-card__body) {
   padding: 24px;
+  max-width: 800px;
 }
 
 .header-row {
@@ -208,7 +207,7 @@ defineExpose({
   gap: 12px;
 }
 
-.config-card h3 {
+.header-row h3 {
   font-size: 24px;
   font-weight: 700;
   color: var(--text);
@@ -220,10 +219,19 @@ defineExpose({
   margin: 0;
 }
 
+.el-form-item {
+  margin-bottom: 24px;
+}
+
+:deep(.el-form-item__content) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .mini-hint {
-  display: block;
-  margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
+  line-height: 1.4;
 }
 </style>

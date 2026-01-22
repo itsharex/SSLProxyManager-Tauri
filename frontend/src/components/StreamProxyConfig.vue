@@ -32,7 +32,8 @@
         暂无 upstream，请先添加。
       </div>
 
-      <el-card v-for="(up, upIndex) in upstreams" :key="upIndex" shadow="never" class="sub-card">
+      <TransitionGroup name="list" tag="div">
+      <el-card v-for="(up, upIndex) in upstreams" :key="up.id || upIndex" shadow="never" class="sub-card">
         <template #header>
           <div class="sub-header">
             <span>Upstream {{ upIndex + 1 }}</span>
@@ -67,33 +68,36 @@
             </div>
           </template>
 
-          <div v-for="(sv, svIndex) in up.servers" :key="svIndex" class="server-row">
-            <el-row :gutter="10">
-              <el-col :span="10">
-                <el-input v-model="sv.addr" placeholder="59.227.155.134:8089" />
-              </el-col>
-              <el-col :span="4">
-                <el-input-number v-model="sv.weight" :min="1" />
-              </el-col>
-              <el-col :span="4">
-                <el-input-number v-model="sv.max_fails" :min="0" />
-              </el-col>
-              <el-col :span="4">
-                <el-input v-model="sv.fail_timeout" placeholder="30s" />
-              </el-col>
-              <el-col :span="2">
-                <el-button type="danger" size="small" :disabled="up.servers.length <= 1" @click="removeUpstreamServer(upIndex, svIndex)">
-                  删除
-                </el-button>
-              </el-col>
-            </el-row>
-          </div>
+          <TransitionGroup name="list" tag="div">
+            <div v-for="(sv, svIndex) in up.servers" :key="sv.id || svIndex" class="server-row">
+              <el-row :gutter="10">
+                <el-col :span="10">
+                  <el-input v-model="sv.addr" placeholder="59.227.155.134:8089" />
+                </el-col>
+                <el-col :span="4">
+                  <el-input-number v-model="sv.weight" :min="1" />
+                </el-col>
+                <el-col :span="4">
+                  <el-input-number v-model="sv.max_fails" :min="0" />
+                </el-col>
+                <el-col :span="4">
+                  <el-input v-model="sv.fail_timeout" placeholder="30s" />
+                </el-col>
+                <el-col :span="2">
+                  <el-button type="danger" size="small" :disabled="up.servers.length <= 1" @click="removeUpstreamServer(upIndex, svIndex)">
+                    删除
+                  </el-button>
+                </el-col>
+              </el-row>
+            </div>
+          </TransitionGroup>
 
           <el-text type="info" size="small" class="mini-hint">
             字段说明：addr=host:port；weight 当前不参与 hash；max_fails/fail_timeout 已用于 TCP 连接失败熔断。
           </el-text>
         </el-card>
-      </el-card>
+              </el-card>
+      </TransitionGroup>
     </el-card>
 
     <el-card shadow="never" class="section-card">
@@ -111,7 +115,8 @@
         暂无 server，请先添加。
       </div>
 
-      <el-card v-for="(sv, sIndex) in servers" :key="sIndex" shadow="never" class="sub-card">
+      <TransitionGroup name="list" tag="div">
+        <el-card v-for="(sv, sIndex) in servers" :key="sv.id || sIndex" shadow="never" class="sub-card">
         <template #header>
           <div class="sub-header">
             <span>Server {{ sIndex + 1 }}</span>
@@ -146,7 +151,8 @@
             <el-input v-model="sv.proxy_timeout" placeholder="600s" style="max-width: 200px;" />
           </el-form-item>
         </el-form>
-      </el-card>
+        </el-card>
+      </TransitionGroup>
     </el-card>
   </el-card>
 </template>
@@ -157,6 +163,7 @@ import { GetConfig } from '../api'
 import { Plus } from '@element-plus/icons-vue'
 
 interface StreamUpstreamServer {
+  id?: string
   addr: string
   weight: number
   max_fails: number
@@ -164,6 +171,7 @@ interface StreamUpstreamServer {
 }
 
 interface StreamUpstream {
+  id?: string
   name: string
   hash_key: string
   consistent: boolean
@@ -171,6 +179,7 @@ interface StreamUpstream {
 }
 
 interface StreamServer {
+  id?: string
   enabled: boolean
   listen_port: number
   proxy_pass: string
@@ -184,6 +193,7 @@ const upstreams = ref<StreamUpstream[]>([])
 const servers = ref<StreamServer[]>([])
 
 const defaultUpstreamServer = (): StreamUpstreamServer => ({
+  id: `new-server-${Date.now()}`,
   addr: '',
   weight: 1,
   max_fails: 1,
@@ -191,6 +201,7 @@ const defaultUpstreamServer = (): StreamUpstreamServer => ({
 })
 
 const defaultUpstream = (): StreamUpstream => ({
+  id: `new-upstream-${Date.now()}`,
   name: '',
   hash_key: '$remote_addr',
   consistent: true,
@@ -198,6 +209,7 @@ const defaultUpstream = (): StreamUpstream => ({
 })
 
 const defaultServer = (): StreamServer => ({
+  id: `new-server-${Date.now()}`,
   enabled: true,
   listen_port: 50002,
   proxy_pass: '',
@@ -392,56 +404,106 @@ defineExpose({
 </script>
 
 <style scoped>
-.config-card {
+.config-page {
   height: 100%;
   overflow-y: auto;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
+}
+
+.config-page :deep(.el-card__header) {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.config-page :deep(.el-card__body) {
+  padding: 20px;
 }
 
 .header-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.header-row h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+  margin: 0;
 }
 
 .section-card {
-  border-radius: 12px;
-  margin-bottom: 12px;
-}
-
-.sub-card {
-  border-radius: 12px;
-  margin-bottom: 10px;
-}
-
-.inner-card {
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sub-card {
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
 }
 
 .sub-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.inner-card {
+  border-radius: var(--radius-md);
+  margin-top: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
 }
 
 .server-row {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .empty-hint {
   color: var(--text-muted);
-  padding: 10px 0;
+  padding: 16px;
+  text-align: center;
 }
 
 .mini-hint {
   display: block;
   margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Transition styles */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s cubic-bezier(0.55, 0, 0.1, 1);
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: scaleY(0.01) translate(30px, 0);
+}
+
+.list-leave-active {
+  position: absolute;
 }
 </style>

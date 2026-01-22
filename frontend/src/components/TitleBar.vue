@@ -172,8 +172,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .title-bar {
   height: 32px;
-  background: var(--card-bg, #1e293b);
-  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: transparent;
   display: flex;
   align-items: center;
   user-select: none;
@@ -181,7 +180,6 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1000;
   flex-shrink: 0;
-  cursor: default;
 }
 
 .title-bar-drag-region {
@@ -190,7 +188,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
+  padding: 0 4px 0 12px;
   -webkit-app-region: drag;
 }
 
@@ -200,29 +198,23 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex: 1;
   min-width: 0;
-  -webkit-app-region: drag;
 }
 
 .app-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: var(--primary, #3b82f6);
-  flex-shrink: 0;
-  -webkit-app-region: drag;
+  color: var(--primary);
   pointer-events: none;
 }
 
 .app-title {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text, #e2e8f0);
+  font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  -webkit-app-region: drag;
   pointer-events: none;
 }
 
@@ -236,68 +228,40 @@ onBeforeUnmount(() => {
 .window-controls {
   display: flex;
   align-items: center;
-  -webkit-app-region: no-drag;
-  gap: 2px;
 }
 
 .window-control-btn {
-  width: 46px;
+  width: 40px;
   height: 32px;
   border: none;
   background: transparent;
-  color: var(--text, #e2e8f0);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, color 0.2s;
   padding: 0;
   margin: 0;
   outline: none;
-  -webkit-app-region: no-drag;
+  border-radius: var(--radius-sm);
 }
 
 .window-control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--btn-hover);
+  color: var(--text);
 }
 
 .window-control-btn:active {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border);
 }
 
 .close-btn:hover {
-  background: #e81123;
+  background: var(--danger);
   color: white;
 }
 
 .close-btn:active {
-  background: #c50e1f;
-}
-
-.window-control-btn svg {
-  display: block;
-  pointer-events: none;
-}
-
-.light-mode .title-bar {
-  background: var(--card-bg, #ffffff);
-  border-bottom-color: var(--border, rgba(0, 0, 0, 0.1));
-}
-
-.light-mode .title-bar .app-title {
-  color: var(--text, #1e293b);
-}
-
-.light-mode .window-control-btn {
-  color: var(--text, #1e293b);
-}
-
-.light-mode .window-control-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.light-mode .close-btn:hover {
-  background: #e81123;
-  color: white;
+  background: var(--danger-hover);
 }
 </style>

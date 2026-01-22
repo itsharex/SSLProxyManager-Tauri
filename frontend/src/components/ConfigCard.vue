@@ -6,10 +6,10 @@
     </template>
 
     <!-- 规则配置 -->
-    <div class="rules-section">
+    <TransitionGroup name="list" tag="div" class="rules-section">
       <el-card 
         v-for="(rule, ruleIndex) in rules" 
-        :key="ruleIndex" 
+        :key="rule.ID || ruleIndex"
         class="rule-card"
         shadow="hover"
       >
@@ -33,10 +33,10 @@
           </el-form-item>
 
           <el-form-item label="路由规则" required>
-            <div class="routes-section">
+            <TransitionGroup name="list" tag="div" class="routes-section">
               <el-card 
                 v-for="(rt, routeIndex) in rule.Routes" 
-                :key="routeIndex"
+                :key="rt.ID || routeIndex"
                 class="route-card"
                 shadow="never"
               >
@@ -115,71 +115,64 @@
                   </el-row>
                 </el-form>
 
-                <el-card class="upstreams-section" shadow="never">
-                  <template #header>
-                    <span>上游服务器</span>
-                  </template>
-                  <div v-for="(upstream, index) in rt.Upstreams" :key="index" class="upstream-item">
-                    <el-row :gutter="10" class="upstream-inputs">
-                      <el-col :span="12">
-                        <el-input
-                          v-model="upstream.URL"
-                          :placeholder="index === 0 ? 'http://127.0.0.1:8080' : 'https://example.com'"
-                          class="upstream-url"
-                        />
-                      </el-col>
-                      <el-col :span="4">
-                        <el-input-number
-                          v-model="upstream.Weight"
-                          :min="1"
-                          placeholder="权重"
-                          class="upstream-weight"
-                        />
-                      </el-col>
-                      <el-col :span="2">
-                        <el-button
-                          @click="removeUpstream(ruleIndex, routeIndex, index)"
-                          type="danger"
-                          size="small"
-                          :disabled="rt.Upstreams.length <= 1"
-                        >
-                          删除
-                        </el-button>
-                      </el-col>
-                    </el-row>
-                  </div>
-                  <el-button @click="addUpstream(ruleIndex, routeIndex)" type="primary">
-                    <el-icon><Plus /></el-icon> 添加新的上游服务器
-                  </el-button>
-                </el-card>
-
-                <el-card class="headers-section" shadow="never">
-                  <template #header>
-                    <div class="headers-title">proxy_set_header（可选）</div>
-                  </template>
-                  <el-text type="info" size="small" class="headers-hint">
-                    支持变量：$remote_addr / $proxy_add_x_forwarded_for / $scheme
-                  </el-text>
-                  <div class="headers-actions">
-                    <el-button @click="applyCommonHeaders(rt)" type="primary" size="small">
-                      <el-icon><MagicStick /></el-icon> 快速应用常用 Nginx Headers
+                <div class="sub-section">
+                  <div class="sub-section-header">上游服务器</div>
+                  <div class="sub-section-body">
+                    <TransitionGroup name="list" tag="div">
+                      <div v-for="(upstream, index) in rt.Upstreams" :key="index" class="upstream-item">
+                          <el-input
+                            v-model="upstream.URL"
+                            :placeholder="index === 0 ? 'http://127.0.0.1:8080' : 'https://example.com'"
+                          />
+                          <el-input-number
+                            v-model="upstream.Weight"
+                            :min="1"
+                            placeholder="权重"
+                          />
+                          <el-button
+                            @click="removeUpstream(ruleIndex, routeIndex, index)"
+                            type="danger"
+                            size="small"
+                            :disabled="rt.Upstreams.length <= 1"
+                          >
+                            删除
+                          </el-button>
+                      </div>
+                    </TransitionGroup>
+                    <el-button @click="addUpstream(ruleIndex, routeIndex)" type="primary" style="margin-top: 12px;">
+                      <el-icon><Plus /></el-icon> 添加新的上游服务器
                     </el-button>
                   </div>
-                  <div v-for="(kv, hIndex) in (rt.SetHeadersList || [])" :key="hIndex" class="header-item">
-                    <el-input v-model="kv.Key" placeholder="Header-Key (如 Host)" class="header-key" />
-                    <el-input v-model="kv.Value" placeholder="Header-Value (如 $remote_addr)" class="header-value" />
-                    <el-button @click="(rt.SetHeadersList || []).splice(hIndex, 1)" type="danger" size="small">删除</el-button>
-                  </div>
-                  <el-button @click="(rt.SetHeadersList ||= []).push({ Key: '', Value: '' })" type="primary" size="small">
-                    <el-icon><Plus /></el-icon> 添加自定义 Header
-                  </el-button>
-                </el-card>
-              </el-card>
+                </div>
 
+                <div class="sub-section">
+                  <div class="sub-section-header">proxy_set_header（可选）</div>
+                  <div class="sub-section-body">
+                    <el-text type="info" size="small" class="headers-hint">
+                      支持变量：$remote_addr / $proxy_add_x_forwarded_for / $scheme
+                    </el-text>
+                    <div class="headers-actions">
+                      <el-button @click="applyCommonHeaders(rt)" type="primary" size="small">
+                        <el-icon><MagicStick /></el-icon> 快速应用常用 Nginx Headers
+                      </el-button>
+                    </div>
+                    <TransitionGroup name="list" tag="div">
+                      <div v-for="(kv, hIndex) in (rt.SetHeadersList || [])" :key="hIndex" class="header-item">
+                        <el-input v-model="kv.Key" placeholder="Header-Key (如 Host)" />
+                        <el-input v-model="kv.Value" placeholder="Header-Value (如 $remote_addr)" />
+                        <el-button @click="(rt.SetHeadersList || []).splice(hIndex, 1)" type="danger" size="small">删除</el-button>
+                      </div>
+                    </TransitionGroup>
+                    <el-button @click="(rt.SetHeadersList ||= []).push({ Key: '', Value: '' })" type="primary" size="small" style="margin-top: 12px;">
+                      <el-icon><Plus /></el-icon> 添加自定义 Header
+                    </el-button>
+                  </div>
+                </div>
+              </el-card>
+            </TransitionGroup>
               <el-button @click="addRoute(ruleIndex)" type="primary" style="margin-top: 10px;">
                 <el-icon><Plus /></el-icon> 添加新的路由规则
               </el-button>
-            </div>
           </el-form-item>
 
           <el-form-item>
@@ -227,11 +220,11 @@
           </template>
         </el-form>
       </el-card>
+    </TransitionGroup>
 
       <el-button @click="addRule" type="primary" style="margin-top: 10px;">
         <el-icon><Plus /></el-icon> 添加新的监听规则
       </el-button>
-    </div>
   </el-card>
 </template>
 
@@ -383,7 +376,7 @@ onMounted(async () => {
 
 const addRule = () => {
   rules.value.push({
-    ID: '',
+    ID: `new-rule-${Date.now()}`,
     ListenAddr: '0.0.0.0:8888',
     SSLEnable: false,
     CertFile: '',
@@ -394,6 +387,7 @@ const addRule = () => {
     BasicAuthForwardHeader: false,
     Routes: [
       {
+        ID: `new-route-${Date.now()}`,
         Host: '',
         Path: '/',
         ProxyPassPath: '',
@@ -461,6 +455,7 @@ const applyCommonHeaders = (rt: Route) => {
 
 const addRoute = (ruleIndex: number) => {
   rules.value[ruleIndex].Routes.push({
+    ID: `new-route-${Date.now()}`,
     Host: '',
     Path: '/',
     ProxyPassPath: '',
@@ -624,24 +619,22 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 样式保持不变（省略） */
-.config-card {
+.config-page {
   height: 100%;
   overflow-y: auto;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
+  padding: 16px;
 }
 
-.config-card :deep(.el-card__header) {
+.config-page :deep(.el-card__header) {
   border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.config-page :deep(.el-card__body) {
   padding: 20px;
 }
 
-.config-card :deep(.el-card__body) {
-  padding: 24px;
-}
-
-.config-card h3 {
+.config-page h3 {
   font-size: 24px;
   font-weight: 700;
   color: var(--text);
@@ -653,36 +646,29 @@ defineExpose({
   margin: 0;
 }
 
-.form-grid {
-  margin-bottom: 24px;
-}
-
 .form-grid :deep(.el-form-item) {
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .mini-hint {
   display: block;
   margin-top: 6px;
   font-size: 12px;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 
 .rules-section {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 24px;
 }
 
 .rule-card {
-  margin-bottom: 18px;
-  border-radius: 14px;
-}
-
-.rule-card :deep(.el-card__header) {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  overflow: visible; /* For transition effects */
 }
 
 .rule-header {
@@ -693,31 +679,28 @@ defineExpose({
 
 .rule-header h4 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--text);
 }
 
+.routes-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-left: 12px;
+}
+
 .route-card {
-  margin-bottom: 16px;
-  border-radius: 12px;
-  background: var(--card-hover);
-  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  border: 1px solid transparent;
   transition: all 0.3s;
 }
 
 .route-card:hover {
   border-color: var(--border-hover);
-  box-shadow: var(--shadow-sm);
-}
-
-.route-card :deep(.el-card__header) {
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.route-card :deep(.el-card__body) {
-  padding: 20px;
+  transform: translateY(-2px);
 }
 
 .route-header {
@@ -727,50 +710,27 @@ defineExpose({
 }
 
 .route-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text);
 }
 
-.route-form {
-  width: 100%;
-}
-
-.route-form :deep(.el-form-item) {
-  margin-bottom: 18px;
-}
-
-.headers-section {
+.sub-section {
   margin-top: 20px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--card-bg);
 }
 
-.headers-section :deep(.el-card__header) {
-  padding: 14px 16px;
+.sub-section-header {
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
-.headers-section :deep(.el-card__body) {
-  padding: 16px;
-}
-
-.headers-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text);
-}
-
-.upstreams-section {
-  margin-top: 20px;
-  border-radius: 12px;
-}
-
-.upstreams-section :deep(.el-card__header) {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.upstreams-section :deep(.el-card__body) {
+.sub-section-body {
   padding: 16px;
 }
 
@@ -781,30 +741,39 @@ defineExpose({
   width: 100%;
 }
 
-.file-selector .el-input {
-  flex: 1;
-}
-
-.file-selector .el-button {
-  flex-shrink: 0;
-}
-
-.header-item {
+.header-item, .upstream-item {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
   margin-bottom: 12px;
 }
 
-.header-key,
-.header-value {
-  width: 100%;
+.upstream-item {
+  grid-template-columns: 2fr 1fr auto;
 }
 
-@media (max-width: 768px) {
-  .header-item {
-    grid-template-columns: 1fr;
-  }
+.headers-hint {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.headers-actions {
+  margin-bottom: 16px;
+}
+
+/* Transition styles */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s cubic-bezier(0.55, 0, 0.1, 1);
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: scaleY(0.01) translate(30px, 0);
+}
+
+.list-leave-active {
+  position: absolute;
 }
 </style>

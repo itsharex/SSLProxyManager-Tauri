@@ -1,7 +1,6 @@
 <template>
-  <el-card class="config-card config-page" shadow="hover">
-    <template #header>
-      <div class="header">
+  <div class="config-card config-page">
+    <div class="header">
         <div>
           <h3>仪表盘</h3>
           <el-text type="info" size="small" class="hint">每2秒更新；仅在仪表盘激活时订阅并渲染</el-text>
@@ -53,10 +52,9 @@
           </el-form-item>
         </div>
       </div>
-    </template>
 
     <div class="grid">
-      <el-card class="panel panel--compact" shadow="hover">
+      <el-card class="panel panel--stats" shadow="hover">
         <div class="stats">
           <div class="stat">
             <div class="stat-label">总请求</div>
@@ -77,42 +75,42 @@
         </div>
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--qps" shadow="hover">
         <template #header>
           <div class="panel-title">请求数趋势（QPS）</div>
         </template>
         <v-chart v-if="isActive" :option="qpsOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--status" shadow="hover">
         <template #header>
           <div class="panel-title">状态码分布</div>
         </template>
         <v-chart v-if="isActive" :option="statusOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--latency" shadow="hover">
         <template #header>
           <div class="panel-title">延迟趋势（ms）</div>
         </template>
         <v-chart v-if="isActive" :option="latencyOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--percentile" shadow="hover">
         <template #header>
           <div class="panel-title">P50 / P95 / P99 延迟（ms）</div>
         </template>
         <v-chart v-if="isActive" :option="pOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--upstream" shadow="hover">
         <template #header>
           <div class="panel-title">Upstream 请求分布（Top 20）</div>
         </template>
         <v-chart v-if="isActive" :option="upDistOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--errors" shadow="hover">
         <template #header>
           <div class="panel-title">Top 错误（Route / Upstream）</div>
         </template>
@@ -144,35 +142,35 @@
         </div>
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--rate" shadow="hover">
         <template #header>
           <div class="panel-title">错误率 / 成功率趋势</div>
         </template>
         <v-chart v-if="isActive" :option="rateOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--pie" shadow="hover">
         <template #header>
           <div class="panel-title">状态码分布（饼图）</div>
         </template>
         <v-chart v-if="isActive" :option="statusPieOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--throughput" shadow="hover">
         <template #header>
           <div class="panel-title">吞吐量趋势（累计请求数）</div>
         </template>
         <v-chart v-if="isActive" :option="throughputOption" class="chart" autoresize />
       </el-card>
 
-      <el-card class="panel" shadow="hover">
+      <el-card class="panel panel--latency-dist" shadow="hover">
         <template #header>
           <div class="panel-title">延迟分布对比</div>
         </template>
         <v-chart v-if="isActive" :option="latencyDistOption" class="chart" autoresize />
       </el-card>
     </div>
-  </el-card>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -620,19 +618,53 @@ const clearHistoricalData = () => {
   ElMessage.info('已清除历史数据')
 }
 
-const baseOption = {
-  backgroundColor: 'rgba(255,255,255,0)',
-  textStyle: { color: 'rgba(15, 23, 42, 0.82)' },
-  animation: false,
-  // 强制使用 Canvas 渲染器，性能更好，适合大数据量
-  renderer: 'canvas',
-}
+const chartColors = ref({
+  text: 'var(--text)',
+  textMuted: 'var(--text-muted)',
+  border: 'var(--border)',
+  primary: 'var(--primary)',
+  primaryLight: 'var(--primary-light)',
+  success: 'var(--success)',
+  warning: 'var(--warning)',
+  danger: 'var(--danger)',
+  info: '#0ea5e9',
+  gray: '#6b7280',
+  purple: '#8b5cf6',
+  pink: '#ec4899',
+  orange: '#f97316',
+});
 
-const commonAxis = {
-  axisLabel: { color: 'rgba(15, 23, 42, 0.7)' },
-  axisLine: { lineStyle: { color: 'rgba(15, 23, 42, 0.18)' } },
-  splitLine: { lineStyle: { color: 'rgba(15, 23, 42, 0.08)' } },
-}
+const updateChartColors = () => {
+  const style = getComputedStyle(document.documentElement);
+  chartColors.value = {
+    text: style.getPropertyValue('--text').trim(),
+    textMuted: style.getPropertyValue('--text-muted').trim(),
+    border: style.getPropertyValue('--border').trim(),
+    primary: style.getPropertyValue('--primary').trim(),
+    primaryLight: style.getPropertyValue('--primary-light').trim(),
+    success: style.getPropertyValue('--success').trim(),
+    warning: style.getPropertyValue('--warning').trim(),
+    danger: style.getPropertyValue('--danger').trim(),
+    info: '#0ea5e9', // Assuming this is static
+    gray: '#6b7280', // Assuming this is static
+    purple: '#8b5cf6', // Assuming this is static
+    pink: '#ec4899', // Assuming this is static
+    orange: '#f97316', // Assuming this is static
+  };
+};
+
+const baseOption = computed<EChartsOption>(() => ({
+  backgroundColor: 'transparent',
+  textStyle: { color: chartColors.value.text },
+  animation: false,
+  renderer: 'canvas',
+}));
+
+const commonAxis = computed(() => ({
+  axisLabel: { color: chartColors.value.textMuted },
+  axisLine: { lineStyle: { color: chartColors.value.border } },
+  splitLine: { lineStyle: { color: chartColors.value.border, type: 'dashed', opacity: 0.5 } },
+}));
 
 // 获取对齐后的视图数据（历史数据优先，如果有历史数据则不显示实时数据）
 const alignedView = computed(() => {
@@ -684,18 +716,18 @@ const qpsOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'category', data: [] },
       yAxis: { type: 'value' },
       series: [],
     }
   }
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
     grid: { left: 44, right: 20, top: 30, bottom: 30 },
-    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis },
-    yAxis: { type: 'value', ...commonAxis },
+    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis.value },
+    yAxis: { type: 'value', ...commonAxis.value },
     series: [
       { 
         name: 'QPS', 
@@ -704,8 +736,8 @@ const qpsOption = computed<EChartsOption>(() => {
         showSymbol: false, 
         large: true,
         largeThreshold: 200,
-        lineStyle: { width: 2, color: '#3b82f6' }, 
-        areaStyle: { opacity: 0.18, color: '#93c5fd' }, 
+        lineStyle: { width: 2, color: chartColors.value.primary }, 
+        areaStyle: { opacity: 0.18, color: chartColors.value.primaryLight }, 
         data: v.series.counts || [],
         sampling: 'lttb',
       },
@@ -717,7 +749,7 @@ const statusOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'category', data: [] },
       yAxis: { type: 'value' },
       series: [],
@@ -725,18 +757,18 @@ const statusOption = computed<EChartsOption>(() => {
   }
   const s = v.series
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
-    legend: { top: 0, textStyle: { color: 'rgba(15, 23, 42, 0.75)' } },
+    legend: { top: 0, textStyle: { color: chartColors.value.textMuted } },
     grid: { left: 44, right: 20, top: 44, bottom: 30 },
-    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis },
-    yAxis: { type: 'value', ...commonAxis },
+    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis.value },
+    yAxis: { type: 'value', ...commonAxis.value },
     series: [
-      { name: '2xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s2xx, lineStyle: { width: 2, color: '#22c55e' }, sampling: 'lttb' },
-      { name: '3xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s3xx, lineStyle: { width: 2, color: '#0ea5e9' }, sampling: 'lttb' },
-      { name: '4xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s4xx, lineStyle: { width: 2, color: '#f59e0b' }, sampling: 'lttb' },
-      { name: '5xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s5xx, lineStyle: { width: 2, color: '#ef4444' }, sampling: 'lttb' },
-      { name: 'err', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s0, lineStyle: { width: 2, color: '#6b7280' }, sampling: 'lttb' },
+      { name: '2xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s2xx, lineStyle: { width: 2, color: chartColors.value.success }, sampling: 'lttb' },
+      { name: '3xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s3xx, lineStyle: { width: 2, color: chartColors.value.info }, sampling: 'lttb' },
+      { name: '4xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s4xx, lineStyle: { width: 2, color: chartColors.value.warning }, sampling: 'lttb' },
+      { name: '5xx', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s5xx, lineStyle: { width: 2, color: chartColors.value.danger }, sampling: 'lttb' },
+      { name: 'err', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.s0, lineStyle: { width: 2, color: chartColors.value.gray }, sampling: 'lttb' },
     ],
   }
 })
@@ -745,7 +777,7 @@ const latencyOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'category', data: [] },
       yAxis: { type: 'value' },
       series: [],
@@ -753,15 +785,15 @@ const latencyOption = computed<EChartsOption>(() => {
   }
   const s = v.series
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
-    legend: { top: 0, textStyle: { color: 'rgba(15, 23, 42, 0.75)' } },
+    legend: { top: 0, textStyle: { color: chartColors.value.textMuted } },
     grid: { left: 44, right: 20, top: 44, bottom: 30 },
-    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis },
-    yAxis: { type: 'value', ...commonAxis },
+    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis.value },
+    yAxis: { type: 'value', ...commonAxis.value },
     series: [
-      { name: 'avg', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.avgLatencyMs, lineStyle: { width: 2, color: '#8b5cf6' }, sampling: 'lttb' },
-      { name: 'max', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.maxLatencyMs, lineStyle: { width: 2, color: '#ec4899' }, sampling: 'lttb' },
+      { name: 'avg', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.avgLatencyMs, lineStyle: { width: 2, color: chartColors.value.purple }, sampling: 'lttb' },
+      { name: 'max', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.maxLatencyMs, lineStyle: { width: 2, color: chartColors.value.pink }, sampling: 'lttb' },
     ],
   }
 })
@@ -770,7 +802,7 @@ const pOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'category', data: [] },
       yAxis: { type: 'value' },
       series: [],
@@ -778,16 +810,16 @@ const pOption = computed<EChartsOption>(() => {
   }
   const s = v.series
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
-    legend: { top: 0, textStyle: { color: 'rgba(15, 23, 42, 0.75)' } },
+    legend: { top: 0, textStyle: { color: chartColors.value.textMuted } },
     grid: { left: 44, right: 20, top: 44, bottom: 30 },
-    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis },
-    yAxis: { type: 'value', ...commonAxis },
+    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis.value },
+    yAxis: { type: 'value', ...commonAxis.value },
     series: [
-      { name: 'p50', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p50 || [], lineStyle: { width: 2, color: '#3b82f6' }, sampling: 'lttb' },
-      { name: 'p95', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p95 || [], lineStyle: { width: 2, color: '#f97316' }, sampling: 'lttb' },
-      { name: 'p99', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p99 || [], lineStyle: { width: 2, color: '#dc2626' }, sampling: 'lttb' },
+      { name: 'p50', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p50 || [], lineStyle: { width: 2, color: chartColors.value.primary }, sampling: 'lttb' },
+      { name: 'p95', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p95 || [], lineStyle: { width: 2, color: chartColors.value.orange }, sampling: 'lttb' },
+      { name: 'p99', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p99 || [], lineStyle: { width: 2, color: chartColors.value.danger }, sampling: 'lttb' },
     ],
   }
 })
@@ -796,21 +828,21 @@ const upDistOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'value' },
       yAxis: { type: 'category', data: [] },
       series: [],
     }
   }
   const upstreamDist = historicalData.value?.upstreamDist || v.series.upstreamDist || []
-  const data = upstreamDist.map(it => ({ name: it.key, value: it.value }))
+  const data = upstreamDist.map(it => ({ name: it.key, value: it.value })).sort((a, b) => a.value - b.value)
   return {
-    ...baseOption,
-    tooltip: { trigger: 'item' },
-    grid: { left: 44, right: 20, top: 30, bottom: 30 },
-    xAxis: { type: 'value', ...commonAxis },
-    yAxis: { type: 'category', data: data.map(d => d.name), axisLabel: { color: 'rgba(15, 23, 42, 0.7)' } },
-    series: [{ name: 'requests', type: 'bar', data: data.map(d => d.value), itemStyle: { color: '#60a5fa' } }],
+    ...baseOption.value,
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 20, right: 40, top: 20, bottom: 20, containLabel: true },
+    xAxis: { type: 'value', ...commonAxis.value },
+    yAxis: { type: 'category', data: data.map(d => d.name), axisLabel: { color: chartColors.value.textMuted, fontSize: 10 } },
+    series: [{ name: 'requests', type: 'bar', data: data.map(d => d.value), itemStyle: { color: chartColors.value.primary, borderRadius: [0, 4, 4, 0] } }],
   }
 })
 
@@ -818,7 +850,7 @@ const rateOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'category', data: [] },
       yAxis: { type: 'value' },
       series: [],
@@ -831,15 +863,15 @@ const rateOption = computed<EChartsOption>(() => {
   const errRate = total.map((t, i) => (t > 0 ? (err[i] / t) * 100 : 0))
   const okRate = total.map((t, i) => (t > 0 ? (ok[i] / t) * 100 : 0))
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' }, valueFormatter: (v: any) => `${Number(v).toFixed(2)}%` },
-    legend: { top: 0, textStyle: { color: 'rgba(15, 23, 42, 0.75)' } },
-    grid: { left: 44, right: 20, top: 44, bottom: 30 },
-    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis },
-    yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: 'rgba(15, 23, 42, 0.7)', formatter: (v: number) => `${v}%` }, splitLine: { lineStyle: { color: 'rgba(15, 23, 42, 0.08)' } } },
+    legend: { top: 0, textStyle: { color: chartColors.value.textMuted } },
+    grid: { left: 50, right: 20, top: 44, bottom: 30 },
+    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis.value },
+    yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: chartColors.value.textMuted, formatter: (v: number) => `${v}%` }, ...commonAxis.value },
     series: [
-      { name: '成功率', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: okRate, lineStyle: { width: 2, color: '#22c55e' }, sampling: 'lttb' },
-      { name: '错误率(5xx+err)', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: errRate, lineStyle: { width: 2, color: '#ef4444' }, sampling: 'lttb' },
+      { name: '成功率', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: okRate, lineStyle: { width: 2, color: chartColors.value.success }, sampling: 'lttb' },
+      { name: '错误率(5xx+err)', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: errRate, lineStyle: { width: 2, color: chartColors.value.danger }, sampling: 'lttb' },
     ],
   }
 })
@@ -854,7 +886,7 @@ const statusPieOption = computed<EChartsOption>(() => {
   } : getRawWindowSeries()
   if (!raw) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       graphic: {
         type: 'text',
         left: 'center',
@@ -862,7 +894,7 @@ const statusPieOption = computed<EChartsOption>(() => {
         style: {
           text: '暂无数据',
           fontSize: 14,
-          fill: 'rgba(15, 23, 42, 0.5)',
+          fill: chartColors.value.textMuted,
         },
       },
       series: [{ type: 'pie', data: [] }],
@@ -877,7 +909,7 @@ const statusPieOption = computed<EChartsOption>(() => {
   
   if (total === 0) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       graphic: {
         type: 'text',
         left: 'center',
@@ -885,7 +917,7 @@ const statusPieOption = computed<EChartsOption>(() => {
         style: {
           text: '暂无数据',
           fontSize: 14,
-          fill: 'rgba(15, 23, 42, 0.5)',
+          fill: chartColors.value.textMuted,
         },
       },
       series: [{ type: 'pie', data: [] }],
@@ -893,14 +925,14 @@ const statusPieOption = computed<EChartsOption>(() => {
   }
   
   const data: Array<{ name: string; value: number; itemStyle: { color: string } }> = []
-  if (total2xx > 0) data.push({ name: '2xx', value: total2xx, itemStyle: { color: '#22c55e' } })
-  if (total3xx > 0) data.push({ name: '3xx', value: total3xx, itemStyle: { color: '#0ea5e9' } })
-  if (total4xx > 0) data.push({ name: '4xx', value: total4xx, itemStyle: { color: '#f59e0b' } })
-  if (total5xx > 0) data.push({ name: '5xx', value: total5xx, itemStyle: { color: '#ef4444' } })
-  if (total0 > 0) data.push({ name: '错误', value: total0, itemStyle: { color: '#6b7280' } })
+  if (total2xx > 0) data.push({ name: '2xx', value: total2xx, itemStyle: { color: chartColors.value.success } })
+  if (total3xx > 0) data.push({ name: '3xx', value: total3xx, itemStyle: { color: chartColors.value.info } })
+  if (total4xx > 0) data.push({ name: '4xx', value: total4xx, itemStyle: { color: chartColors.value.warning } })
+  if (total5xx > 0) data.push({ name: '5xx', value: total5xx, itemStyle: { color: chartColors.value.danger } })
+  if (total0 > 0) data.push({ name: '错误', value: total0, itemStyle: { color: chartColors.value.gray } })
   
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: {
       trigger: 'item',
       formatter: (params: any) => {
@@ -913,7 +945,7 @@ const statusPieOption = computed<EChartsOption>(() => {
       orient: 'vertical',
       left: 'left',
       top: 'middle',
-      textStyle: { color: 'rgba(15, 23, 42, 0.75)' },
+      textStyle: { color: chartColors.value.textMuted },
     },
     series: [
       {
@@ -924,8 +956,8 @@ const statusPieOption = computed<EChartsOption>(() => {
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 8,
-          borderColor: '#fff',
-          borderWidth: 2,
+          borderColor: 'var(--card-bg)',
+          borderWidth: 4,
         },
         label: {
           show: true,
@@ -952,7 +984,7 @@ const throughputOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'category', data: [] },
       yAxis: { type: 'value' },
       series: [],
@@ -966,11 +998,11 @@ const throughputOption = computed<EChartsOption>(() => {
   })
   
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
     grid: { left: 44, right: 20, top: 30, bottom: 30 },
-    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis },
-    yAxis: { type: 'value', ...commonAxis },
+    xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis.value },
+    yAxis: { type: 'value', ...commonAxis.value },
     series: [
       {
         name: '累计请求数',
@@ -980,8 +1012,8 @@ const throughputOption = computed<EChartsOption>(() => {
         large: true,
         largeThreshold: 200,
         data: cumulativeData,
-        lineStyle: { width: 2, color: '#8b5cf6' },
-        areaStyle: { opacity: 0.2, color: '#8b5cf6' },
+        lineStyle: { width: 2, color: chartColors.value.purple },
+        areaStyle: { opacity: 0.2, color: chartColors.value.purple },
         sampling: 'lttb',
       },
     ],
@@ -992,7 +1024,7 @@ const latencyDistOption = computed<EChartsOption>(() => {
   const v = alignedView.value
   if (!v) {
     return {
-      ...baseOption,
+      ...baseOption.value,
       xAxis: { type: 'category', data: [] },
       yAxis: { type: 'value' },
       series: [],
@@ -1003,13 +1035,13 @@ const latencyDistOption = computed<EChartsOption>(() => {
   const vals = dist.map(d => d.value)
 
   return {
-    ...baseOption,
+    ...baseOption.value,
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: 44, right: 20, top: 30, bottom: 50 },
-    xAxis: { type: 'category', data: names, ...commonAxis, axisLabel: { ...commonAxis.axisLabel, rotate: 30 } },
-    yAxis: { type: 'value', ...commonAxis },
+    xAxis: { type: 'category', data: names, ...commonAxis.value, axisLabel: { ...commonAxis.value.axisLabel, rotate: 30 } },
+    yAxis: { type: 'value', ...commonAxis.value },
     series: [
-      { name: '请求数', type: 'bar', data: vals, itemStyle: { color: '#8b5cf6' }, barWidth: '60%' },
+      { name: '请求数', type: 'bar', data: vals, itemStyle: { color: chartColors.value.purple }, barWidth: '60%' },
     ],
   }
 })
@@ -1207,8 +1239,22 @@ watch(() => props.isActive, (active) => {
   }
 }, { immediate: true })
 
+let themeObserver: MutationObserver | null = null;
+
 onMounted(() => {
-  // no-op: 已由 watch(isActive) 统一管理
+  updateChartColors();
+
+  themeObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        updateChartColors();
+      }
+    });
+  });
+
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+  });
 })
 
 onBeforeUnmount(() => {
@@ -1219,46 +1265,278 @@ onBeforeUnmount(() => {
     heartbeatCleanup()
     heartbeatCleanup = null
   }
+  if (themeObserver) {
+    themeObserver.disconnect();
+  }
 })
 </script>
 
 <style scoped>
-.config-card { background: var(--card-bg); border-radius: 20px; padding: 32px; box-shadow: var(--shadow-lg); border: 1px solid var(--border); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter: blur(10px); }
-.config-page { height: 100%; overflow-y: auto; }
-.header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+.config-card {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  border: none;
+}
 
-h3 { font-size: 24px; font-weight: 700; margin: 0; color: var(--text); background: linear-gradient(135deg, var(--primary), var(--primary-hover)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.5px; }
-.hint { color: var(--text-muted); font-size: 13px; }
+.config-page {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+}
 
-.controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-.control { display: flex; flex-direction: column; gap: 6px; }
-.control label { font-size: 12px; color: var(--text-muted); }
-select { padding: 10px 12px; border-radius: 10px; border: 2px solid var(--border); background: rgba(255, 255, 255, 0.65); color: rgba(15, 23, 42, 0.85); font-size: 13px; outline: none; }
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
 
-.grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-.panel { border: 2px solid var(--border); border-radius: 14px; padding: 14px; background: rgba(255, 255, 255, 0.55); }
-.panel--compact { padding: 12px; }
-.panel-title { font-size: 14px; font-weight: 700; color: rgba(15, 23, 42, 0.9); margin-bottom: 10px; }
-.chart { height: 260px; width: 100%; }
+h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text);
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
 
-.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.stat { border: 1px solid rgba(15, 23, 42, 0.08); border-radius: 12px; padding: 10px 12px; background: rgba(255, 255, 255, 0.75); }
-.stat-label { font-size: 12px; color: rgba(15, 23, 42, 0.6); margin-bottom: 6px; }
-.stat-value { font-size: 18px; font-weight: 800; color: rgba(15, 23, 42, 0.9); }
+.hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
 
-.tables { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.table { border: 1px solid rgba(15, 23, 42, 0.08); border-radius: 12px; background: rgba(255, 255, 255, 0.75); padding: 10px 12px; }
-.table-title { font-size: 13px; font-weight: 800; color: rgba(15, 23, 42, 0.85); margin-bottom: 10px; }
-.rows { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow: auto; }
-.row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.65); border: 1px solid rgba(15, 23, 42, 0.06); }
-.row .k { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 12px; color: rgba(15, 23, 42, 0.75); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .v { font-weight: 900; color: rgba(15, 23, 42, 0.9); }
-.empty { color: rgba(15, 23, 42, 0.55); font-size: 12px; padding: 10px 6px; }
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  grid-column: span 12;
+}
+
+.panel:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-glow);
+  border-color: var(--border-hover);
+}
+
+.panel--stats {
+  grid-column: span 12;
+}
+
+.panel--qps {
+  grid-column: span 6;
+}
+
+.panel--status {
+  grid-column: span 6;
+}
+
+.panel--latency {
+  grid-column: span 8;
+}
+
+.panel--percentile {
+  grid-column: span 4;
+}
+
+.panel--upstream {
+  grid-column: span 12;
+}
+
+.panel--errors {
+  grid-column: span 12;
+}
+
+.panel--rate {
+  grid-column: span 6;
+}
+
+.panel--pie {
+  grid-column: span 6;
+}
+
+.panel--throughput {
+  grid-column: span 6;
+}
+
+.panel--latency-dist {
+  grid-column: span 6;
+}
+
+
+.panel :deep(.el-card__header) {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.panel :deep(.el-card__body) {
+  padding: 20px;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chart {
+  height: 280px;
+  width: 100%;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.table :deep(.el-card__header) {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  transition: background-color 0.2s;
+}
+
+.row:hover {
+  background: var(--input-focus);
+}
+
+.row .k {
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row .v {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* Responsive Grid */
+@media (max-width: 1200px) {
+  .panel--qps,
+  .panel--status,
+  .panel--rate,
+  .panel--pie,
+  .panel--throughput,
+  .panel--latency-dist {
+    grid-column: span 12;
+  }
+
+  .panel--latency {
+    grid-column: span 7;
+  }
+
+  .panel--percentile {
+    grid-column: span 5;
+  }
+}
 
 @media (max-width: 768px) {
-  .config-card { padding: 20px; }
-  .chart { height: 220px; }
-  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .config-page { padding: 8px; }
+  .grid { gap: 16px; }
+  .header { margin-bottom: 16px; }
+  h3 { font-size: 20px; }
+  .chart { height: 240px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
   .tables { grid-template-columns: 1fr; }
+  
+  .panel--latency,
+  .panel--percentile {
+    grid-column: span 12;
+  }
+}
+
+@media (max-width: 480px) {
+  .config-page { padding: 4px; }
+  .grid { gap: 12px; }
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  h3 { font-size: 18px; }
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .controls .el-form-item {
+    width: 100%;
+  }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .stat-value { font-size: 22px; }
+  .panel :deep(.el-card__body) {
+    padding: 12px;
+  }
 }
 </style>

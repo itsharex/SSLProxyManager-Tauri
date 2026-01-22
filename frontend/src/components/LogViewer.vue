@@ -1,5 +1,5 @@
 <template>
-  <el-card class="log-viewer log-page" shadow="hover">
+  <el-card class="log-page" shadow="never">
     <template #header>
       <div class="log-header">
         <h3 class="log-title">实时访问日志</h3>
@@ -176,36 +176,24 @@ const clearLogs = () => {
 </script>
 
 <style scoped>
-.log-viewer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
-}
-
-.log-viewer :deep(.el-card__body) {
-  padding: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
 .log-page {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-.text-selectable {
-  user-select: text;
-  -webkit-user-drag: none;
-  -moz-user-select: text;
-  -ms-user-select: text;
-}
-
-.log-viewer :deep(.el-card__header) {
-  padding: 16px 20px;
+.log-page :deep(.el-card__header) {
   border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
   flex-shrink: 0;
+}
+
+.log-page :deep(.el-card__body) {
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .log-header {
@@ -215,154 +203,55 @@ const clearLogs = () => {
 }
 
 .log-title {
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text);
-  margin: 0;
-  transition: color 0.3s;
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.5px;
+  margin: 0;
 }
 
 .log-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .log-count {
   font-size: 13px;
+  color: var(--text-muted);
 }
 
 .log-content {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
-  padding: 12px 16px;
-  background: var(--bg);
+  padding: 8px;
+  background: var(--input-bg);
   font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
-  line-height: 20px;
+  font-size: 13px;
   color: var(--text-muted);
   min-height: 0;
-  position: relative;
-  transition: background-color 0.3s, color 0.3s;
+  border-radius: var(--radius-md);
+  margin: 16px;
 }
 
 .log-line {
   white-space: pre-wrap;
   word-break: break-all;
-  padding: 4px 8px;
+  padding: 2px 8px;
   color: var(--text);
-  line-height: 1.8;
   border-radius: 4px;
-  transition: all 0.2s;
-  margin-bottom: 2px;
+  transition: background-color 0.2s;
 }
 
 .log-line:hover {
-  background: var(--btn-bg);
-  padding-left: 12px;
+  background-color: var(--card-bg);
 }
 
-.empty-log {
-  color: var(--text-muted);
-  text-align: center;
-  padding: 60px 20px;
-  font-size: 14px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-/* 滚动条样式 */
-.log-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-.log-content::-webkit-scrollbar-track {
-  background: var(--card-bg);
-}
-
-.log-content::-webkit-scrollbar-thumb {
-  background: var(--btn-bg);
-  border-radius: 4px;
-}
-
-.log-content::-webkit-scrollbar-thumb:hover {
-  background: var(--border);
-}
-
-/* 响应式布局 */
-@media (max-width: 768px) {
-  .log-viewer {
-    border-radius: 16px;
-  }
-
-  .log-header {
-    padding: 12px 16px;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .log-title {
-    font-size: 16px;
-  }
-
-  .log-actions {
-    flex-wrap: wrap;
-    gap: 10px;
-    width: 100%;
-  }
-
-  .log-count {
-    font-size: 12px;
-  }
-
-  .log-content {
-    padding: 10px 12px;
-    font-size: 11px;
-    line-height: 18px;
-  }
-}
-
-@media (max-width: 480px) {
-  .log-viewer {
-    border-radius: 12px;
-  }
-
-  .log-header {
-    padding: 10px 12px;
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .log-title {
-    font-size: 14px;
-  }
-
-  .log-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .log-count {
-    font-size: 11px;
-  }
-
-  .log-content {
-    padding: 8px 10px;
-    font-size: 10px;
-    line-height: 16px;
-  }
-
-  .log-line {
-    padding: 3px 6px;
-    font-size: 10px;
-  }
+.text-selectable {
+  user-select: text;
 }
 </style>

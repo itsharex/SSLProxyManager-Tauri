@@ -32,8 +32,8 @@
       </el-form-item>
 
       <el-form-item label="IP 白名单">
-        <div class="whitelist-list">
-          <div v-for="(item, index) in localConfig.whitelist" :key="index" class="whitelist-item">
+        <TransitionGroup name="list" tag="div" class="whitelist-list">
+          <div v-for="(item, index) in localConfig.whitelist" :key="item.id || index" class="whitelist-item">
             <el-input
               v-model="item.ip"
               placeholder="例如: 192.168.1.100"
@@ -41,7 +41,7 @@
             />
             <el-button @click="removeWhitelistItem(index)" type="danger" size="small">删除</el-button>
           </div>
-        </div>
+        </TransitionGroup>
         <el-button @click="addWhitelistItem" type="primary" style="margin-top: 10px;">
           <el-icon><Plus /></el-icon> 添加 IP 地址
         </el-button>
@@ -222,7 +222,7 @@ const localConfig = ref({
   ws_access_control_enabled: true,
   stream_access_control_enabled: true,
   allow_all_lan: true,
-  whitelist: [] as { ip: string }[],
+  whitelist: [] as { id?: string; ip: string }[],
 })
 
 // 黑名单状态
@@ -348,7 +348,7 @@ watch(
 )
 
 const addWhitelistItem = () => {
-  localConfig.value.whitelist.push({ ip: '' })
+  localConfig.value.whitelist.push({ id: `new-ip-${Date.now()}`, ip: '' })
 }
 
 const removeWhitelistItem = (index: number) => {
@@ -534,23 +534,21 @@ defineExpose({
 </script>
 
 <style scoped>
-.config-card {
+.config-page {
   height: 100%;
   overflow-y: auto;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
 }
 
-.config-card :deep(.el-card__header) {
+.config-page :deep(.el-card__header) {
   border-bottom: 1px solid var(--border);
-  padding: 20px;
+  padding: 16px 20px;
 }
 
-.config-card :deep(.el-card__body) {
+.config-page :deep(.el-card__body) {
   padding: 24px;
 }
 
-.config-card h3 {
+.config-page h3 {
   font-size: 24px;
   font-weight: 700;
   color: var(--text);
@@ -567,23 +565,19 @@ defineExpose({
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .ac-switches {
   display: flex;
-  gap: 14px;
+  gap: 24px;
   flex-wrap: wrap;
   align-items: center;
 }
 
-.ac-switch {
-  display: flex;
-  align-items: center;
-}
-
 .whitelist-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   width: 100%;
 }
@@ -593,22 +587,19 @@ defineExpose({
   grid-template-columns: 1fr auto;
   gap: 10px;
   align-items: center;
-}
-
-.whitelist-input {
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  max-width: 400px;
 }
 
 .blacklist-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8px;
+  margin: 24px 0 16px;
 }
 
 .blacklist-header h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text);
 }
@@ -619,9 +610,20 @@ defineExpose({
 }
 
 .hint {
-  margin-left: 12px;
   font-size: 12px;
   display: block;
   margin-top: 4px;
+  color: var(--text-muted);
+}
+
+/* Transition styles */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.4s ease;
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
 }
 </style>

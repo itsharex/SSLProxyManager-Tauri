@@ -10,10 +10,10 @@
     </template>
 
     <el-form label-width="140px">
-      <div class="rules-section">
+      <TransitionGroup name="list" tag="div" class="rules-section">
         <el-card
           v-for="(rule, ruleIndex) in rules"
-          :key="ruleIndex"
+          :key="rule.id || ruleIndex"
           class="rule-card"
           shadow="hover"
         >
@@ -69,13 +69,12 @@
               </div>
             </template>
 
-            <el-card
-              v-for="(rt, routeIndex) in rule.routes"
-              :key="routeIndex"
-              class="route-item"
-              shadow="never"
-            >
-              <template #header>
+            <TransitionGroup name="list" tag="div">
+              <div
+                v-for="(rt, routeIndex) in rule.routes"
+                :key="rt.id || routeIndex"
+                class="route-item"
+              >
                 <div class="route-item-header">
                   <span>路由 {{ routeIndex + 1 }}</span>
                   <el-button
@@ -87,27 +86,27 @@
                     删除路由
                   </el-button>
                 </div>
-              </template>
 
-              <el-form-item label="Path 前缀">
-                <el-input v-model="rt.path" placeholder="/ws" />
-              </el-form-item>
+                <el-form-item label="Path 前缀">
+                  <el-input v-model="rt.path" placeholder="/ws" />
+                </el-form-item>
 
-              <el-form-item label="上游地址">
-                <el-input v-model="rt.upstream_url" placeholder="ws://127.0.0.1:9000 或 wss://example.com/ws" />
-              </el-form-item>
-            </el-card>
+                <el-form-item label="上游地址">
+                  <el-input v-model="rt.upstream_url" placeholder="ws://127.0.0.1:9000 或 wss://example.com/ws" />
+                </el-form-item>
+              </div>
+            </TransitionGroup>
 
             <el-button @click="addRoute(ruleIndex)" type="primary" style="margin-top: 10px;">
               <el-icon><Plus /></el-icon> 添加路由
             </el-button>
           </el-card>
         </el-card>
+      </TransitionGroup>
 
         <el-button @click="addRule" type="primary" style="margin-top: 10px;">
           <el-icon><Plus /></el-icon> 添加 WS 监听规则
         </el-button>
-      </div>
     </el-form>
   </el-card>
 </template>
@@ -119,11 +118,13 @@ import { Plus, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 interface WsRoute {
+  id?: string
   path: string
   upstream_url: string
 }
 
 interface WsListenRule {
+  id?: string
   enabled: boolean
   listen_addr: string
   ssl_enable: boolean
@@ -173,12 +174,13 @@ onMounted(async () => {
 
 const addRule = () => {
   rules.value.push({
+    id: `new-rule-${Date.now()}`,
     enabled: true,
     listen_addr: '0.0.0.0:9001',
     ssl_enable: false,
     cert_file: '',
     key_file: '',
-    routes: [{ path: '/ws', upstream_url: 'ws://127.0.0.1:9000' }],
+    routes: [{ id: `new-route-${Date.now()}`, path: '/ws', upstream_url: 'ws://127.0.0.1:9000' }],
   })
 }
 
@@ -189,6 +191,7 @@ const removeRule = (index: number) => {
 
 const addRoute = (ruleIndex: number) => {
   rules.value[ruleIndex].routes.push({
+    id: `new-route-${Date.now()}`,
     path: '/ws',
     upstream_url: '',
   })
@@ -275,6 +278,20 @@ defineExpose({
 </script>
 
 <style scoped>
+.config-page {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.config-page :deep(.el-card__header) {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.config-page :deep(.el-card__body) {
+  padding: 20px;
+}
+
 .header-row {
   display: flex;
   align-items: center;
@@ -282,26 +299,71 @@ defineExpose({
   width: 100%;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+.header-row h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+  margin: 0;
 }
 
 .rules-section {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
 }
 
 .rule-card {
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--card-bg);
 }
 
 .rule-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.rule-header h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.routes-card {
+  margin-top: 14px;
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+}
+
+.route-item {
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  padding: 16px;
+  background: var(--card-bg);
+}
+
+.route-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.route-item-header span {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .file-selector {
@@ -311,23 +373,18 @@ defineExpose({
   width: 100%;
 }
 
-.file-selector .el-input {
-  flex: 1;
+/* Transition styles */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s cubic-bezier(0.55, 0, 0.1, 1);
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: scaleY(0.01) translate(30px, 0);
 }
 
-.routes-card {
-  margin-top: 14px;
-  border-radius: 12px;
-}
-
-.route-item {
-  margin-bottom: 12px;
-  border-radius: 12px;
-}
-
-.route-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.list-leave-active {
+  position: absolute;
 }
 </style>

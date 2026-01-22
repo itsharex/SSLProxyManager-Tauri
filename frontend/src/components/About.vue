@@ -242,9 +242,40 @@ watch(
 </script>
 
 <style scoped>
+.config-page {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.config-page :deep(.el-card__header) {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.config-page :deep(.el-card__body) {
+  padding: 24px;
+  max-width: 800px;
+}
+
+.config-page h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
 .about-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
+}
+
+:deep(.el-descriptions__label) {
+  width: 120px;
 }
 </style>

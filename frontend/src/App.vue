@@ -742,7 +742,7 @@ onBeforeUnmount(() => {
 }
 
 .app-container > .top-bar {
-  margin: 20px 20px 20px 20px;
+  margin: 16px 16px 0;
 }
 
 .app-container::before {
@@ -757,10 +757,11 @@ onBeforeUnmount(() => {
 }
 
 .top-bar {
-  margin-bottom: 20px;
   flex-shrink: 0;
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
 }
 
 .top-bar :deep(.el-card__body) {
@@ -867,21 +868,21 @@ h1 {
 
 .main-content {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 0 20px 20px 20px;
+  padding: 16px;
 }
 
 .sidebar-nav {
-  width: 180px;
+  width: 200px;
   flex-shrink: 0;
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
-  height: fit-content;
-  max-height: 100%;
-  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  height: 100%;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -892,6 +893,9 @@ h1 {
 .sidebar-nav :deep(.el-card__body) {
   padding: 12px 8px;
   transition: padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-collapsed :deep(.el-card__body) {
@@ -922,6 +926,8 @@ h1 {
 .nav-menu {
   border: none;
   background: transparent;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .nav-menu :deep(.el-menu-item-group__title) {
@@ -944,7 +950,7 @@ h1 {
   height: 44px;
   line-height: 44px;
   margin: 4px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
@@ -1029,6 +1035,9 @@ h1 {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
 }
 
 /* 响应式布局 */
