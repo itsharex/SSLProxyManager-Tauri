@@ -133,7 +133,7 @@
                             @click="removeUpstream(ruleIndex, routeIndex, index)"
                             type="danger"
                             size="small"
-                            :disabled="rt.Upstreams.length <= 1"
+                            :disabled="rt.Upstreams.length <= 1 && !(rt.StaticDir && rt.StaticDir.trim() !== '')"
                           >
                             删除
                           </el-button>
@@ -412,8 +412,13 @@ const addUpstream = (ruleIndex: number, routeIndex: number) => {
 }
 
 const removeUpstream = (ruleIndex: number, routeIndex: number, upstreamIndex: number) => {
-  const list = rules.value[ruleIndex].Routes[routeIndex].Upstreams
-  if (list.length > 1) {
+  const rt = rules.value[ruleIndex].Routes[routeIndex]
+  const list = rt.Upstreams
+  const hasStaticDir = !!(rt.StaticDir && rt.StaticDir.trim() !== '')
+
+  // 如果配置了静态目录，则允许删到 0 个上游
+  const minLen = hasStaticDir ? 0 : 1
+  if (list.length > minLen) {
     list.splice(upstreamIndex, 1)
   }
 }
@@ -500,7 +505,11 @@ const selectDirectory = async (ruleIndex: number, routeIndex: number) => {
   try {
     const dirPath = await OpenDirectoryDialog()
     if (dirPath) {
-      rules.value[ruleIndex].Routes[routeIndex].StaticDir = String(dirPath)
+      const rt = rules.value[ruleIndex].Routes[routeIndex]
+      rt.StaticDir = String(dirPath)
+
+      // 如果选择了静态目录，允许上游为空：自动清理掉仅用于占位的空上游
+      rt.Upstreams = (rt.Upstreams || []).filter((u) => (u.URL || '').trim() !== '')
     }
   } catch (error: any) {
     ElMessage.error(`选择目录失败: ${error.message || error}`)
