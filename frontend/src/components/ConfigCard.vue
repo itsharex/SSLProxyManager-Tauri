@@ -2,7 +2,12 @@
 <template>
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
-      <h3>代理配置</h3>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <h3>代理配置</h3>
+        <el-button type="primary" @click="exportConfigToml">
+          导出当前配置
+        </el-button>
+      </div>
     </template>
 
     <!-- 规则配置 -->
@@ -230,7 +235,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { GetConfig, OpenCertFileDialog, OpenKeyFileDialog, OpenDirectoryDialog } from '../api'
+import { GetConfig, OpenCertFileDialog, OpenKeyFileDialog, OpenDirectoryDialog, ExportCurrentConfigToml } from '../api'
 import { Plus, MagicStick, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
@@ -521,6 +526,18 @@ const normalizePath = (p: string) => {
   if (!v) return '/'
   return v.startsWith('/') ? v : '/' + v
 }
+
+const exportConfigToml = async () => {
+  try {
+    const savedPath = (await ExportCurrentConfigToml()) as string | null
+    if (savedPath) {
+      ElMessage.success(`已导出到: ${savedPath}`)
+    }
+  } catch (error: any) {
+    ElMessage.error(`导出失败: ${error?.message || error}`)
+  }
+}
+
 
 // 获取配置（供父组件调用）
 const getConfig = () => {

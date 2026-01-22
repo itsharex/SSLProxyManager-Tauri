@@ -6,6 +6,7 @@ use crate::update;
 use anyhow::Result;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+use std::path::PathBuf;
 
 #[tauri::command]
 pub fn get_config() -> Result<config::Config, String> {
@@ -261,4 +262,63 @@ pub fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
     proxy::stop_server(app.clone()).ok();
     app.exit(0);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn save_config_toml_as(app: tauri::AppHandle, content: String) -> Result<Option<String>, String> {
+    let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let default_name = format!("config-{}.toml", ts);
+
+    let file = app
+        .dialog()
+        .file()
+        .set_title("导出所有配置")
+        .set_file_name(&default_name)
+        .add_filter("TOML", &["toml"])
+        .add_filter("所有文件", &["*"])
+        .blocking_save_file();
+
+    let Some(file) = file else {
+        return Ok(None);
+    };
+
+    let path: PathBuf = file
+        .into_path()
+        .map_err(|e| format!("无法获取保存路径: {e}"))?;
+
+    std::fs::write(&path, content).map_err(|e| format!("写入文件失败: {e}"))?;
+
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+pub async fn export_current_config_toml(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let cfg_path = crate::config::get_config_path().map_err(|e| e.to_string())?;
+
+    let content = std::fs::read_to_string(&cfg_path)
+        .map_err(|e| format!("读取当前配置文件失败({}): {e}", cfg_path.display()))?;
+
+    let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let default_name = format!("config-{}.toml", ts);
+
+    let file = app
+        .dialog()
+        .file()
+        .set_title("导出当前配置")
+        .set_file_name(&default_name)
+        .add_filter("TOML", &["toml"])
+        .add_filter("所有文件", &["*"])
+        .blocking_save_file();
+
+    let Some(file) = file else {
+        return Ok(None);
+    };
+
+    let path: PathBuf = file
+        .into_path()
+        .map_err(|e| format!("无法获取保存路径: {e}"))?;
+
+    std::fs::write(&path, content).map_err(|e| format!("写入文件失败: {e}"))?;
+
+    Ok(Some(path.to_string_lossy().to_string()))
 }

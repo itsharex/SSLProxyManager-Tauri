@@ -323,7 +323,7 @@ fn default_config() -> Config {
     }
 }
 
-fn get_config_path() -> Result<PathBuf> {
+pub(crate) fn get_config_path() -> Result<PathBuf> {
     // 开发模式优先读取当前工作目录下的 config.toml（便于调试时直接改项目根目录配置）
     #[cfg(debug_assertions)]
     {

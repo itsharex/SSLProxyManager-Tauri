@@ -109,6 +109,14 @@ export async function OpenDirectoryDialog() {
   return await invoke('open_directory_dialog');
 }
 
+export async function SaveConfigTomlAs(content: string) {
+  return await invoke('save_config_toml_as', { content });
+}
+
+export async function ExportCurrentConfigToml() {
+  return await invoke('export_current_config_toml');
+}
+
 // 应用控制
 export async function HideToTray() {
   return await invoke('hide_to_tray');
