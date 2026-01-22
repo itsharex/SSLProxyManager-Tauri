@@ -100,7 +100,7 @@
 
       <el-card class="panel" shadow="hover">
         <template #header>
-          <div class="panel-title">P95 / P99 延迟（ms）</div>
+          <div class="panel-title">P50 / P95 / P99 延迟（ms）</div>
         </template>
         <v-chart v-if="isActive" :option="pOption" class="chart" autoresize />
       </el-card>
@@ -199,6 +199,7 @@ type MetricsSeries = {
   avgLatencyMs: number[]
   maxLatencyMs: number[]
 
+  p50?: number[]
   p95?: number[]
   p99?: number[]
 
@@ -465,6 +466,7 @@ const buildAlignedView = () => {
     s0: pick(all.s0, 0),
     avgLatencyMs: pick(all.avgLatencyMs, 0),
     maxLatencyMs: pick(all.maxLatencyMs, 0),
+    p50: pick(all.p50, 0),
     p95: pick(all.p95, 0),
     p99: pick(all.p99, 0),
 
@@ -589,6 +591,7 @@ const loadHistoricalData = async () => {
         s0: response.series.s0 || [],
         avgLatencyMs: response.series.avgLatencyMs || [],
         maxLatencyMs: response.series.maxLatencyMs || [],
+        p50: response.series.p50 || [],
         p95: response.series.p95 || [],
         p99: response.series.p99 || [],
         upstreamDist: (response.series.upstreamDist || []).map((kv: any) => ({ key: kv.key || kv.Key || '', value: kv.value || kv.Value || 0 })),
@@ -657,6 +660,7 @@ const alignedView = computed(() => {
       s0: idx.map(i => histSeries.s0[i] || 0),
       avgLatencyMs: idx.map(i => histSeries.avgLatencyMs[i] || 0),
       maxLatencyMs: idx.map(i => histSeries.maxLatencyMs[i] || 0),
+      p50: idx.map(i => histSeries.p50?.[i] || 0),
       p95: idx.map(i => histSeries.p95?.[i] || 0),
       p99: idx.map(i => histSeries.p99?.[i] || 0),
       upstreamDist: histSeries.upstreamDist || [],
@@ -781,6 +785,7 @@ const pOption = computed<EChartsOption>(() => {
     xAxis: { type: 'category', data: v.x, boundaryGap: false, ...commonAxis },
     yAxis: { type: 'value', ...commonAxis },
     series: [
+      { name: 'p50', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p50 || [], lineStyle: { width: 2, color: '#3b82f6' }, sampling: 'lttb' },
       { name: 'p95', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p95 || [], lineStyle: { width: 2, color: '#f97316' }, sampling: 'lttb' },
       { name: 'p99', type: 'line', smooth: false, showSymbol: false, large: true, largeThreshold: 200, data: s.p99 || [], lineStyle: { width: 2, color: '#dc2626' }, sampling: 'lttb' },
     ],
@@ -1059,6 +1064,7 @@ const convertMetricsSeriesMap = (map: Record<string, any> | undefined): Record<s
       s0: value.s0 || [],
       avgLatencyMs: value.avgLatencyMs || [],
       maxLatencyMs: value.maxLatencyMs || [],
+      p50: value.p50,
       p95: value.p95,
       p99: value.p99,
       upstreamDist: (value.upstreamDist || []).map((kv: any) => ({ key: kv.key || kv.Key || '', value: kv.value || kv.Value || 0 })),

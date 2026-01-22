@@ -176,6 +176,8 @@ pub struct MetricsSeries {
     #[serde(rename = "maxLatencyMs")]
     pub max_latency_ms: Vec<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub p50: Option<Vec<f64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub p95: Option<Vec<f64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub p99: Option<Vec<f64>>,
@@ -288,6 +290,7 @@ impl RtSeriesAgg {
             s0: Vec::with_capacity(len),
             avg_latency_ms: Vec::with_capacity(len),
             max_latency_ms: Vec::with_capacity(len),
+            p50: None,
             p95: None,
             p99: None,
             upstream_dist: None,
@@ -945,7 +948,7 @@ pub async fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryM
             series: MetricsSeries {
                 timestamps: vec![], counts: vec![], s2xx: vec![], s3xx: vec![], s4xx: vec![], s5xx: vec![], s0: vec![],
                 avg_latency_ms: vec![], max_latency_ms: vec![],
-                p95: Some(vec![]), p99: Some(vec![]),
+                p50: Some(vec![]), p95: Some(vec![]), p99: Some(vec![]),
                 upstream_dist: Some(vec![]), top_route_err: Some(vec![]), top_up_err: Some(vec![]), latency_dist: Some(vec![]),
             },
         });
@@ -959,7 +962,9 @@ pub async fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryM
             series: MetricsSeries {
                 timestamps: vec![], counts: vec![], s2xx: vec![], s3xx: vec![], s4xx: vec![], s5xx: vec![], s0: vec![],
                 avg_latency_ms: vec![], max_latency_ms: vec![],
-                p95: Some(vec![]), p99: Some(vec![]),
+                p50: Some(vec![]),
+                p95: Some(vec![]), 
+                p99: Some(vec![]),
                 upstream_dist: Some(vec![]), top_route_err: Some(vec![]), top_up_err: Some(vec![]), latency_dist: Some(vec![]),
             },
         });
@@ -1050,58 +1055,79 @@ pub async fn query_historical_metrics(req: QueryMetricsRequest) -> Result<QueryM
     let top_up_err: Vec<KeyValue> = ue_qb.build_query_as::<(String, i64)>().fetch_all(&*pool).await?
         .into_iter().map(|(k, v)| KeyValue { key: k, value: v }).collect();
 
-    // Latency Dist
+    // Latency Dist（12桶）
     let mut lat_qb = QueryBuilder::new(
-        "SELECT SUM(CASE WHEN latency_ms < 10 THEN 1 ELSE 0 END) AS b1,
-        SUM(CASE WHEN latency_ms >= 10 AND latency_ms < 50 THEN 1 ELSE 0 END) AS b2,
-        SUM(CASE WHEN latency_ms >= 50 AND latency_ms < 100 THEN 1 ELSE 0 END) AS b3,
-        SUM(CASE WHEN latency_ms >= 100 AND latency_ms < 300 THEN 1 ELSE 0 END) AS b4,
-        SUM(CASE WHEN latency_ms >= 300 AND latency_ms < 1000 THEN 1 ELSE 0 END) AS b5,
-        SUM(CASE WHEN latency_ms >= 1000 THEN 1 ELSE 0 END) AS b6
-        FROM request_logs WHERE timestamp >= "
+        "SELECT\n        SUM(CASE WHEN latency_ms < 5 THEN 1 ELSE 0 END) AS b1,\n        SUM(CASE WHEN latency_ms >= 5 AND latency_ms < 10 THEN 1 ELSE 0 END) AS b2,\n        SUM(CASE WHEN latency_ms >= 10 AND latency_ms < 20 THEN 1 ELSE 0 END) AS b3,\n        SUM(CASE WHEN latency_ms >= 20 AND latency_ms < 50 THEN 1 ELSE 0 END) AS b4,\n        SUM(CASE WHEN latency_ms >= 50 AND latency_ms < 100 THEN 1 ELSE 0 END) AS b5,\n        SUM(CASE WHEN latency_ms >= 100 AND latency_ms < 150 THEN 1 ELSE 0 END) AS b6,\n        SUM(CASE WHEN latency_ms >= 150 AND latency_ms < 250 THEN 1 ELSE 0 END) AS b7,\n        SUM(CASE WHEN latency_ms >= 250 AND latency_ms < 400 THEN 1 ELSE 0 END) AS b8,\n        SUM(CASE WHEN latency_ms >= 400 AND latency_ms < 700 THEN 1 ELSE 0 END) AS b9,\n        SUM(CASE WHEN latency_ms >= 700 AND latency_ms < 1000 THEN 1 ELSE 0 END) AS b10,\n        SUM(CASE WHEN latency_ms >= 1000 AND latency_ms < 2000 THEN 1 ELSE 0 END) AS b11,\n        SUM(CASE WHEN latency_ms >= 2000 THEN 1 ELSE 0 END) AS b12\n        FROM request_logs WHERE timestamp >= "
     );
     lat_qb.push_bind(start).push(" AND timestamp <= ").push_bind(end);
     if let Some(v) = listen_addr {
         lat_qb.push(" AND listen_addr = ").push_bind(v);
     }
-    let (b1, b2, b3, b4, b5, b6): (Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<i64>) =
-        lat_qb.build_query_as().fetch_one(&*pool).await?;
+
+    let (b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12): (
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+    ) = lat_qb.build_query_as().fetch_one(&*pool).await?;
 
     let latency_dist = vec![
-        KeyValue { key: "<10ms".into(), value: b1.unwrap_or(0) },
-        KeyValue { key: "10-50ms".into(), value: b2.unwrap_or(0) },
-        KeyValue { key: "50-100ms".into(), value: b3.unwrap_or(0) },
-        KeyValue { key: "100-300ms".into(), value: b4.unwrap_or(0) },
-        KeyValue { key: "300-1000ms".into(), value: b5.unwrap_or(0) },
-        KeyValue { key: ">=1000ms".into(), value: b6.unwrap_or(0) },
+        KeyValue { key: "<5ms".into(), value: b1.unwrap_or(0) },
+        KeyValue { key: "5-10ms".into(), value: b2.unwrap_or(0) },
+        KeyValue { key: "10-20ms".into(), value: b3.unwrap_or(0) },
+        KeyValue { key: "20-50ms".into(), value: b4.unwrap_or(0) },
+        KeyValue { key: "50-100ms".into(), value: b5.unwrap_or(0) },
+        KeyValue { key: "100-150ms".into(), value: b6.unwrap_or(0) },
+        KeyValue { key: "150-250ms".into(), value: b7.unwrap_or(0) },
+        KeyValue { key: "250-400ms".into(), value: b8.unwrap_or(0) },
+        KeyValue { key: "400-700ms".into(), value: b9.unwrap_or(0) },
+        KeyValue { key: "700-1000ms".into(), value: b10.unwrap_or(0) },
+        KeyValue { key: "1000-2000ms".into(), value: b11.unwrap_or(0) },
+        KeyValue { key: ">=2000ms".into(), value: b12.unwrap_or(0) },
     ];
 
-    // P95/P99
-    let mut p_qb = QueryBuilder::new("SELECT latency_ms FROM request_logs WHERE timestamp >= ");
-    p_qb.push_bind(start).push(" AND timestamp <= ").push_bind(end);
-    if let Some(v) = listen_addr {
-        p_qb.push(" AND listen_addr = ").push_bind(v);
-    }
-    p_qb.push(" ORDER BY latency_ms ASC");
-    let lat_all: Vec<(f64,)> = p_qb.build_query_as().fetch_all(&*pool).await.unwrap_or_default();
-    
-    let mut p95 = 0.0;
-    let mut p99 = 0.0;
-    let n = lat_all.len();
-    if n > 0 {
-        let idx95 = ((n as f64) * 0.95).ceil() as usize;
-        let idx99 = ((n as f64) * 0.99).ceil() as usize;
-        let idx95 = idx95.saturating_sub(1).min(n - 1);
-        let idx99 = idx99.saturating_sub(1).min(n - 1);
-        p95 = ((lat_all[idx95].0 * 10000.0).round()) / 10000.0;
-        p99 = ((lat_all[idx99].0 * 10000.0).round()) / 10000.0;
-    }
+    // P50/P95/P99（近似）：使用 12 桶估算
+    let dist_counts = [
+        b1.unwrap_or(0), b2.unwrap_or(0), b3.unwrap_or(0), b4.unwrap_or(0),
+        b5.unwrap_or(0), b6.unwrap_or(0), b7.unwrap_or(0), b8.unwrap_or(0),
+        b9.unwrap_or(0), b10.unwrap_or(0), b11.unwrap_or(0), b12.unwrap_or(0),
+    ];
+    let total_lat = dist_counts.iter().sum::<i64>();
+
+    let dist_medians = [2.5, 7.5, 15.0, 35.0, 75.0, 125.0, 200.0, 325.0, 550.0, 850.0, 1500.0, 3000.0];
+
+    let approx_percentile = |p: f64| -> f64 {
+        if total_lat <= 0 {
+            return 0.0;
+        }
+        let target = (total_lat as f64 * p).ceil() as i64;
+        let mut acc = 0i64;
+        for i in 0..dist_counts.len() {
+            acc += dist_counts[i];
+            if acc >= target {
+                return dist_medians[i];
+            }
+        }
+        dist_medians[dist_medians.len() - 1]
+    };
+
+    let p50 = approx_percentile(0.50);
+    let p95 = approx_percentile(0.95);
+    let p99 = approx_percentile(0.99);
 
     Ok(QueryMetricsResponse {
         series: MetricsSeries {
             timestamps, counts, s2xx, s3xx, s4xx, s5xx, s0: vec![0; cap],
             avg_latency_ms: avg_latency, max_latency_ms: max_latency,
-            p95: Some(vec![p95; cap]), p99: Some(vec![p99; cap]),
+            p50: Some(vec![p50; cap]), p95: Some(vec![p95; cap]), p99: Some(vec![p99; cap]),
             upstream_dist: Some(upstream_dist), top_route_err: Some(top_route_err),
             top_up_err: Some(top_up_err), latency_dist: Some(latency_dist),
         },
