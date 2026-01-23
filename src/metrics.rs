@@ -215,6 +215,8 @@ pub struct MetricsPayload {
     pub minute_window_seconds: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "byListenMinute")]
     pub by_listen_minute: Option<HashMap<String, MetricsSeries>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "topRoutes")]
+    pub top_routes: Option<Vec<TopListItem>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -324,6 +326,7 @@ impl RtSeriesAgg {
 struct RealtimeAgg {
     per_sec: HashMap<String, RtSeriesAgg>,
     per_min: HashMap<String, RtSeriesAgg>,
+    route_counts: HashMap<String, HashMap<String, i64>>,
 }
 
 impl RealtimeAgg {
@@ -331,15 +334,29 @@ impl RealtimeAgg {
         Self::default()
     }
 
-    fn add(&mut self, listen_addr: &str, ts_sec: i64, status_code: i32, latency_ms: f64) {
-        self.add_one("全局", ts_sec, status_code, latency_ms);
+    fn add(
+        &mut self,
+        listen_addr: &str,
+        ts_sec: i64,
+        status_code: i32,
+        latency_ms: f64,
+        matched_route_id: &str,
+    ) {
+        self.add_one("全局", ts_sec, status_code, latency_ms, matched_route_id);
         let la = listen_addr.trim();
         if !la.is_empty() {
-            self.add_one(la, ts_sec, status_code, latency_ms);
+            self.add_one(la, ts_sec, status_code, latency_ms, matched_route_id);
         }
     }
 
-    fn add_one(&mut self, key: &str, ts_sec: i64, status_code: i32, latency_ms: f64) {
+    fn add_one(
+        &mut self,
+        key: &str,
+        ts_sec: i64,
+        status_code: i32,
+        latency_ms: f64,
+        matched_route_id: &str,
+    ) {
         let min_ts = (ts_sec / 60) * 60;
 
         let sec = self.per_sec.entry(key.to_string()).or_default();
@@ -349,6 +366,13 @@ impl RealtimeAgg {
         let min = self.per_min.entry(key.to_string()).or_default();
         min.add(min_ts, status_code, latency_ms);
         min.trim_older_than(ts_sec - REALTIME_MINUTE_WINDOW_SECS);
+
+        // Top Routes（matched_route_id）实时聚合
+        let rid = matched_route_id.trim();
+        if !rid.is_empty() {
+            let m = self.route_counts.entry(key.to_string()).or_default();
+            *m.entry(rid.to_string()).or_insert(0) += 1;
+        }
     }
 
     fn to_payload(&self) -> MetricsPayload {
@@ -371,12 +395,36 @@ impl RealtimeAgg {
             by_listen_minute.insert(k.clone(), v.to_metrics_series());
         }
 
+        let mut top_routes: Vec<TopListItem> = self
+            .route_counts
+            .get("全局")
+            .map(|m| {
+                let mut v: Vec<TopListItem> = m
+                    .iter()
+                    .map(|(k, c)| TopListItem {
+                        item: k.clone(),
+                        count: *c,
+                    })
+                    .collect();
+                v.sort_by(|a, b| b.count.cmp(&a.count));
+                if v.len() > 10 {
+                    v.truncate(10);
+                }
+                v
+            })
+            .unwrap_or_default();
+
+        if top_routes.is_empty() {
+            // 如果全局为空，尽量给一个空的 None，减少前端处理
+        }
+
         MetricsPayload {
             window_seconds: REALTIME_WINDOW_SECS as i32,
             listen_addrs,
             by_listen_addr,
             minute_window_seconds: Some(REALTIME_MINUTE_WINDOW_SECS as i32),
             by_listen_minute: Some(by_listen_minute),
+            top_routes: if top_routes.is_empty() { None } else { Some(top_routes) },
         }
     }
 }
@@ -763,6 +811,7 @@ pub fn try_enqueue_request_log(log: RequestLogInsert) {
             log.timestamp,
             log.status_code,
             log.latency_ms,
+            &log.matched_route_id,
         );
     }
 
@@ -942,6 +991,14 @@ pub fn get_metrics() -> MetricsPayload {
                 if b.latency_max_ms > out.latency_max_ms {
                     out.latency_max_ms = b.latency_max_ms;
                 }
+            }
+        }
+
+        // top routes
+        for (k, m) in guard.route_counts.iter() {
+            let dst = merged.route_counts.entry(k.clone()).or_default();
+            for (rid, cnt) in m.iter() {
+                *dst.entry(rid.clone()).or_insert(0) += *cnt;
             }
         }
     }

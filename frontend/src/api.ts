@@ -70,6 +70,10 @@ export async function QueryRequestLogs(req: any) {
   return await invoke('query_request_logs', { req });
 }
 
+export async function GetDashboardStats(req: any) {
+  return await invoke('get_dashboard_stats', { req });
+}
+
 // 黑名单相关
 export async function AddBlacklistEntry(ip: string, reason: string, durationSeconds: number) {
   return await invoke('add_blacklist_entry', { ip, reason, durationSeconds });

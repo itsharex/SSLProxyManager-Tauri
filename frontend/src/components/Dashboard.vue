@@ -169,6 +169,24 @@
         </template>
         <v-chart v-if="isActive" :option="latencyDistOption" class="chart" autoresize />
       </el-card>
+
+      <el-card class="panel panel--top-routes" shadow="hover">
+        <template #header>
+          <div class="panel-title">Top 路由请求分布</div>
+          <el-tooltip content="基于 matched_route_id 统计的请求数 Top10" placement="top">
+            <el-icon class="header-icon"><InfoFilled /></el-icon>
+          </el-tooltip>
+        </template>
+        <div v-if="!isActive" class="chart-placeholder">
+          <el-skeleton :rows="5" animated />
+        </div>
+        <template v-else>
+          <div v-if="topRoutes.length > 0" class="top-routes-chart">
+            <v-chart :option="topRoutesOption" class="chart" autoresize />
+          </div>
+          <el-empty v-else :description="historicalData ? '暂无路由数据' : '实时模式不查数据库，请载入历史数据查看'" :image-size="60" />
+        </template>
+      </el-card>
     </div>
   </div>
 </template>
@@ -176,9 +194,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElConfigProvider } from 'element-plus'
+import { InfoFilled } from '@element-plus/icons-vue'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import { EventsOn, EventsOff } from '../api'
-import { GetListenAddrs, GetMetrics, QueryHistoricalMetrics } from '../api'
+import { GetListenAddrs, GetMetrics, QueryHistoricalMetrics, GetDashboardStats, GetConfig } from '../api'
 import type { EChartsOption } from 'echarts'
 
 const props = defineProps<{ isActive: boolean }>()
@@ -207,6 +226,11 @@ type MetricsSeries = {
   latencyDist?: KV[]
 }
 
+type DashboardStatsResponse = {
+  top_routes?: Array<{ item: string; count: number }>
+  top_route_errors?: Array<{ item: string; count: number }>
+}
+
 type MetricsPayload = {
   windowSeconds: number
   listenAddrs: string[]
@@ -214,6 +238,8 @@ type MetricsPayload = {
 
   minuteWindowSeconds?: number
   byListenMinute?: Record<string, MetricsSeries>
+
+  topRoutes?: Array<{ item: string; count: number }>
 }
 
 const listenAddrs = ref<string[]>(['全局'])
@@ -550,6 +576,42 @@ const topUpErr = computed(() => {
   return raw?.topUpErr || []
 })
 
+// Top Routes（matched_route_id）来源：后端 get_dashboard_stats
+const topRoutes = ref<Array<{ item: string; count: number }>>([])
+
+const fetchTopRoutes = async () => {
+  if (!props.isActive) return
+
+  // 仅在“载入历史数据”模式下查询数据库（get_dashboard_stats 走 DB）
+  if (!historicalData.value || !dateRange.value || dateRange.value.length !== 2) {
+    topRoutes.value = []
+    return
+  }
+
+  const listenAddr = selectedListen.value === '全局' ? '' : selectedListen.value
+
+  const [startMs, endMs] = dateRange.value
+  const start = Math.floor(startMs / 1000)
+  const end = Math.floor(endMs / 1000)
+
+  try {
+    // @ts-ignore
+    const res: DashboardStatsResponse = await GetDashboardStats({
+      start_time: start,
+      end_time: end,
+      listen_addr: listenAddr,
+      granularity_secs: Math.max(1, Math.floor((end - start) / 60)),
+    })
+
+    const list = Array.isArray(res?.top_routes) ? res.top_routes : []
+    topRoutes.value = list
+      .filter((it) => it && typeof it.item === 'string' && it.item.trim() !== '')
+      .map((it) => ({ item: it.item, count: Number(it.count) || 0 }))
+  } catch (e) {
+    topRoutes.value = []
+  }
+}
+
 // 加载历史数据
 const loadHistoricalData = async () => {
   if (!dateRange.value || dateRange.value.length !== 2) {
@@ -598,6 +660,8 @@ const loadHistoricalData = async () => {
         latencyDist: (response.series.latencyDist || []).map((kv: any) => ({ key: kv.key || kv.Key || '', value: kv.value || kv.Value || 0 })), 
       }
       historicalData.value = series
+      // 载入历史数据后，Top Routes 才需要查询数据库
+      fetchTopRoutes()
       ElMessage.success(`历史数据加载成功，共 ${series.timestamps.length} 个数据点`)
     } else {
       ElMessage.warning('未找到历史数据')
@@ -615,6 +679,8 @@ const loadHistoricalData = async () => {
 // 清除历史数据
 const clearHistoricalData = () => {
   historicalData.value = null
+  // 清除历史数据时同步清空 Top Routes（避免误以为还在历史模式）
+  topRoutes.value = []
   ElMessage.info('已清除历史数据')
 }
 
@@ -1046,6 +1112,91 @@ const latencyDistOption = computed<EChartsOption>(() => {
   }
 })
 
+// matched_route_id -> 更直观的显示名（upstreams + path）
+const routeLabelMap = ref<Record<string, string>>({})
+
+const refreshRouteLabelMap = async () => {
+  try {
+    const cfg = (await GetConfig()) as any
+    const map: Record<string, string> = {}
+
+    const rules = Array.isArray(cfg?.rules) ? cfg.rules : []
+    for (const rule of rules) {
+      const routes = Array.isArray(rule?.routes) ? rule.routes : []
+      for (const rt of routes) {
+        const id = String(rt?.id || '').trim()
+        if (!id) continue
+
+        const path = String(rt?.path || '/').trim() || '/'
+        const ups = Array.isArray(rt?.upstreams) ? rt.upstreams : []
+        const upsText = ups
+          .map((u: any) => String(u?.url || '').trim())
+          .filter((s: string) => !!s)
+          .join(',')
+
+        const staticDir = String(rt?.static_dir || '').trim()
+
+        // 更直观显示：
+        // - upstreams 非空：显示 upstreams + path
+        // - upstreams 为空且 static_dir 非空：显示 static_dir + path（静态资源）
+        // - 否则回退到 id
+        const label = upsText
+          ? `${upsText} ${path}`.trim()
+          : (staticDir ? `${staticDir} ${path}`.trim() : id)
+
+        map[id] = label || id
+      }
+    }
+
+    routeLabelMap.value = map
+  } catch {
+    routeLabelMap.value = {}
+  }
+}
+
+const displayRouteName = (routeId: string) => {
+  const id = String(routeId || '').trim()
+  if (!id) return ''
+  return routeLabelMap.value[id] || id
+}
+
+const topRoutesOption = computed<EChartsOption>(() => {
+  const rows = topRoutes.value || []
+  if (!rows.length) {
+    return {
+      ...baseOption.value,
+      xAxis: { type: 'value', ...commonAxis.value },
+      yAxis: { type: 'category', data: [] },
+      series: [],
+    }
+  }
+
+  // 为了更好看：从小到大排序（横向条形图从下往上）
+  const data = rows
+    .map((r) => ({ name: displayRouteName(r.item), value: Number(r.count) || 0 }))
+    .sort((a, b) => a.value - b.value)
+
+  return {
+    ...baseOption.value,
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 20, right: 40, top: 20, bottom: 20, containLabel: true },
+    xAxis: { type: 'value', ...commonAxis.value },
+    yAxis: {
+      type: 'category',
+      data: data.map((d) => d.name),
+      axisLabel: { color: chartColors.value.textMuted, fontSize: 10 },
+    },
+    series: [
+      {
+        name: '请求数',
+        type: 'bar',
+        data: data.map((d) => d.value),
+        itemStyle: { color: chartColors.value.primary, borderRadius: [0, 4, 4, 0] },
+      },
+    ],
+  }
+})
+
 // ---- 订阅/轮询策略（已按后端推送优化） ----
 let subscribed = false
 let metricsUnlisten: (() => void) | null = null
@@ -1064,6 +1215,13 @@ const processMetricsPayload = (payload: MetricsPayload) => {
   lastEventTime = Date.now()
   eventEverReceived = true
 
+  // 实时 Top Routes：来自 get_metrics（内存聚合，不查库）
+  if (!historicalData.value) {
+    topRoutes.value = Array.isArray(payload.topRoutes)
+      ? payload.topRoutes.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
+      : []
+  }
+
   if (selectedListen.value !== '全局' && !listenAddrs.value.includes(selectedListen.value)) {
     selectedListen.value = '全局'
   }
@@ -1080,6 +1238,8 @@ const onMetrics = (payload: MetricsPayload) => {
   processMetricsPayload(payload)
   // 收到事件立即停轮询（事件为主）
   stopPolling()
+
+  // Top Routes：实时模式不查库（仅载入历史数据后才查询）
 }
 
 const convertMetricsSeriesMap = (map: Record<string, any> | undefined): Record<string, MetricsSeries> => {
@@ -1125,8 +1285,11 @@ const startPolling = () => {
         byListenAddr: convertMetricsSeriesMap(payload.byListenAddr),
         minuteWindowSeconds: payload.minuteWindowSeconds,
         byListenMinute: convertMetricsSeriesMap(payload.byListenMinute),
+        topRoutes: payload.topRoutes,
       }
       processMetricsPayload(converted)
+
+      // Top Routes：实时模式不查库（仅载入历史数据后才查询）
     } catch (err) {
       console.error('轮询获取 metrics 失败:', err)
     }
@@ -1199,6 +1362,20 @@ const startSubscription = () => {
         })
 }
 
+// Top Routes：完全并入 metrics 的订阅/轮询兜底体系（这里只做节流刷新）
+let topRoutesLastRefreshAt = 0
+const TOP_ROUTES_THROTTLE_MS = 2500
+
+const refreshTopRoutesThrottled = async () => {
+  // 实时模式不查库（TopRoutes 依赖 DB 聚合）
+  if (!historicalData.value) return
+
+  const now = Date.now()
+  if (now - topRoutesLastRefreshAt < TOP_ROUTES_THROTTLE_MS) return
+  topRoutesLastRefreshAt = now
+  await fetchTopRoutes()
+}
+
 const stopSubscription = () => {
   if (metricsUnlisten) {
     try {
@@ -1216,18 +1393,26 @@ watch([selectedListen, selectedWindow], () => {
   if (lastValidView && (lastValidView.window !== selectedWindow.value || lastValidView.listen !== selectedListen.value)) {
     lastValidView = null
   }
+
+  // Top Routes 仅在历史模式下查询数据库
+  if (historicalData.value) {
+    fetchTopRoutes()
+  }
 })
 
 watch(() => props.isActive, (active) => {
   if (active) {
     refreshListenAddrs()
     startSubscription()
+    refreshRouteLabelMap()
+
+    // Top Routes 仅在历史模式查询数据库；实时模式不查询（历史数据载入成功后会触发）
 
     if (!heartbeatCleanup) {
       heartbeatCleanup = startHeartbeat()
     }
     
-    // 首次激活：等事件；若超时 heartbeat 会自动启动轮询
+    // 首次激活：等事件；若超时 heartbeat 会自动启动轮询兜底
   } else {
     stopPolling()
     stopSubscription()
@@ -1381,6 +1566,10 @@ h3 {
 }
 
 .panel--latency-dist {
+  grid-column: span 6;
+}
+
+.panel--top-routes {
   grid-column: span 6;
 }
 
