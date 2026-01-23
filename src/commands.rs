@@ -346,12 +346,7 @@ pub async fn set_route_enabled(
     config::set_config(cfg.clone());
     config::save_config().map_err(|e| e.to_string())?;
 
-    if was_running {
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        proxy::start_server(app).map_err(|e| e.to_string())?;
-    }
-
-    Ok(cfg)
+    app.restart();
 }
 
 #[tauri::command]
@@ -385,11 +380,7 @@ pub async fn set_listen_rule_enabled(
     config::set_config(cfg.clone());
     config::save_config().map_err(|e| e.to_string())?;
 
-    if was_running {
-        proxy::start_server(app).map_err(|e| e.to_string())?;
-    }
-
-    Ok(cfg)
+    app.restart();
 }
 
 #[tauri::command]
