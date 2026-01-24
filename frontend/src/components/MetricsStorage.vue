@@ -388,10 +388,21 @@ defineExpose({
 .status-detail-table :deep(.el-descriptions__label) {
   white-space: nowrap;
   width: 140px;
+  color: var(--text);
 }
 
 .status-detail-table :deep(.el-descriptions__content) {
   word-break: break-all;
+  color: var(--text);
+}
+
+.status-detail-table :deep(.el-descriptions__cell) {
+  background: var(--card-bg);
+  border-color: var(--border);
+}
+
+.status-detail-table :deep(.el-descriptions__header) {
+  color: var(--text);
 }
 
 .info-list {
