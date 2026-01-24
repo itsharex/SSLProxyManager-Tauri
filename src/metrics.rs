@@ -387,6 +387,7 @@ struct RealtimeAgg {
     path_counts: HashMap<String, HashMap<String, i64>>,
     ip_counts: HashMap<String, HashMap<String, i64>>,
     upstream_error_counts: HashMap<String, HashMap<String, i64>>,
+    upstream_counts: HashMap<String, HashMap<String, i64>>,
 }
 
 impl RealtimeAgg {
@@ -472,6 +473,13 @@ impl RealtimeAgg {
             *m.entry(ip.to_string()).or_insert(0) += 1;
         }
 
+        // Upstream 请求分布实时聚合
+        {
+            let up = normalize_upstream_for_top(upstream);
+            let m = self.upstream_counts.entry(key.to_string()).or_default();
+            *m.entry(up).or_insert(0) += 1;
+        }
+
         // Top upstream(错误) 实时聚合
         if status_code >= 400 {
             let up = normalize_upstream_for_top(upstream);
@@ -492,7 +500,26 @@ impl RealtimeAgg {
 
         let mut by_listen_addr = HashMap::with_capacity(self.per_sec.len());
         for (k, v) in self.per_sec.iter() {
-            by_listen_addr.insert(k.clone(), v.to_metrics_series());
+            let mut s = v.to_metrics_series();
+            // 实时 upstream 分布（Top20）
+            if let Some(m) = self.upstream_counts.get(k) {
+                let mut vv: Vec<KeyValue> = m
+                    .iter()
+                    .map(|(kk, cc)| KeyValue {
+                        key: kk.clone(),
+                        value: *cc,
+                    })
+                    .collect();
+                vv.sort_by(|a, b| b.value.cmp(&a.value));
+                if vv.len() > 20 {
+                    vv.truncate(20);
+                }
+                if !vv.is_empty() {
+                    s.upstream_dist = Some(vv);
+                }
+            }
+
+            by_listen_addr.insert(k.clone(), s);
         }
 
         let mut by_listen_minute = HashMap::with_capacity(self.per_min.len());
@@ -1258,6 +1285,14 @@ pub fn get_metrics() -> MetricsPayload {
         // top upstream errors
         for (k, m) in guard.upstream_error_counts.iter() {
             let dst = merged.upstream_error_counts.entry(k.clone()).or_default();
+            for (up, cnt) in m.iter() {
+                *dst.entry(up.clone()).or_insert(0) += *cnt;
+            }
+        }
+
+        // upstream dist
+        for (k, m) in guard.upstream_counts.iter() {
+            let dst = merged.upstream_counts.entry(k.clone()).or_default();
             for (up, cnt) in m.iter() {
                 *dst.entry(up.clone()).or_insert(0) += *cnt;
             }
