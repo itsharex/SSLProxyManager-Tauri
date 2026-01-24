@@ -16,6 +16,17 @@ export interface DBStatus {
   request_logs_min_ts?: number
   request_logs_max_ts?: number
   db_file_size_bytes?: number
+  sqlite_version?: string
+  journal_mode?: string
+  synchronous?: string
+  wal_autocheckpoint?: number
+  page_size?: number
+  page_count?: number
+  freelist_count?: number
+  cache_size?: number
+  busy_timeout_ms?: number
+  wal_file_size_bytes?: number
+  shm_file_size_bytes?: number
 }
 
 // 全局数据库状态（所有组件共享同一份数据，但每个组件有独立的加载状态）

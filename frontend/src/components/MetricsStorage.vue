@@ -14,8 +14,8 @@
       </el-form-item>
 
       <el-form-item v-if="localConfig.enabled" label="数据库文件路径">
-        <el-input 
-          v-model="localConfig.db_path" 
+        <el-input
+          v-model="localConfig.db_path"
           placeholder="留空使用默认路径：程序目录/data/metrics.db"
           style="max-width: 500px;"
         />
@@ -38,17 +38,49 @@
             show-icon
           >
             <template #default>
-              <div class="status-detail">
-                <p><strong>数据库路径：</strong>{{ dbStatus.path }}</p>
-                <p><strong>文件状态：</strong>已创建</p>
-                <p v-if="dbStatus.db_file_size_bytes != null"><strong>文件大小：</strong>{{ formatBytes(dbStatus.db_file_size_bytes) }}</p>
-                <p v-if="dbStatus.request_logs_count != null"><strong>记录行数：</strong>{{ formatNumber(dbStatus.request_logs_count) }}</p>
-                <p v-if="dbStatus.request_logs_min_ts != null"><strong>最早记录：</strong>{{ formatTs(dbStatus.request_logs_min_ts) }}</p>
-                <p v-if="dbStatus.request_logs_max_ts != null"><strong>最新记录：</strong>{{ formatTs(dbStatus.request_logs_max_ts) }}</p>
+              <div class="status-grid">
+                <el-descriptions :column="3" border class="status-detail-table">
+                  <template #title>文件与容量</template>
+                  <el-descriptions-item label="数据库路径" :span="3">{{ dbStatus.path }}</el-descriptions-item>
+
+                  <el-descriptions-item label="DB(MB)">{{ formatBytes(dbStatus.db_file_size_bytes) }}</el-descriptions-item>
+                  <el-descriptions-item label="WAL(MB)">{{ formatBytes(dbStatus.wal_file_size_bytes) }}</el-descriptions-item>
+                  <el-descriptions-item label="SHM(MB)">{{ formatBytes(dbStatus.shm_file_size_bytes) }}</el-descriptions-item>
+
+                  <el-descriptions-item label="WAL+SHM(MB)">{{ formatBytes(walShmBytesTotal) }}</el-descriptions-item>
+                  <el-descriptions-item label="总页大小(MB)">{{ formatBytes(pageBytesTotal) }}</el-descriptions-item>
+                  <el-descriptions-item label="可回收(MB)">{{ formatBytes(freeBytesTotal) }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-descriptions :column="3" border class="status-detail-table">
+                  <template #title>日志与时间范围</template>
+                  <el-descriptions-item label="记录行数">{{ formatNumber(dbStatus.request_logs_count) }}</el-descriptions-item>
+                  <el-descriptions-item label="最早记录">{{ formatTs(dbStatus.request_logs_min_ts) }}</el-descriptions-item>
+                  <el-descriptions-item label="最新记录">{{ formatTs(dbStatus.request_logs_max_ts) }}</el-descriptions-item>
+                </el-descriptions>
+
+                <el-descriptions :column="3" border class="status-detail-table">
+                  <template #title>SQLite 配置</template>
+                  <el-descriptions-item label="SQLite 版本">{{ dbStatus.sqlite_version || '—' }}</el-descriptions-item>
+                  <el-descriptions-item label="journal_mode">{{ dbStatus.journal_mode || '—' }}</el-descriptions-item>
+                  <el-descriptions-item label="synchronous">{{ formatSynchronous(dbStatus.synchronous) }}</el-descriptions-item>
+
+                  <el-descriptions-item label="page_size">{{ formatNumber(dbStatus.page_size) }}</el-descriptions-item>
+                  <el-descriptions-item label="page_count">{{ formatNumber(dbStatus.page_count) }}</el-descriptions-item>
+                  <el-descriptions-item label="freelist_count">{{ formatNumber(dbStatus.freelist_count) }}</el-descriptions-item>
+
+                  <el-descriptions-item label="碎片率">{{ fragRateText }}</el-descriptions-item>
+                  <el-descriptions-item label="cache_size">{{ formatCacheSize(dbStatus.cache_size) }}</el-descriptions-item>
+                  <el-descriptions-item label="busy_timeout(ms)">{{ formatNumber(dbStatus.busy_timeout_ms) }}</el-descriptions-item>
+
+                  <el-descriptions-item label="wal_autocheckpoint">{{ formatNumber(dbStatus.wal_autocheckpoint) }}</el-descriptions-item>
+                  <el-descriptions-item label="—">—</el-descriptions-item>
+                  <el-descriptions-item label="—">—</el-descriptions-item>
+                </el-descriptions>
               </div>
             </template>
           </el-alert>
-          
+
           <el-alert
             v-else-if="dbStatus.initialized && !dbStatus.file_exists && dbStatus.dir_exists && dbStatus.dir_writable"
             title="数据库就绪（等待首次写入）"
@@ -64,7 +96,7 @@
               </div>
             </template>
           </el-alert>
-          
+
           <el-alert
             v-else-if="dbStatus.error"
             :title="dbStatus.initialized ? '数据库配置异常' : '数据库初始化失败'"
@@ -86,20 +118,14 @@
               </div>
             </template>
           </el-alert>
-          
-          <el-alert
-            v-else
-            title="正在检查数据库状态..."
-            type="info"
-            :closable="false"
-            show-icon
-          />
+
+          <el-alert v-else title="正在检查数据库状态..." type="info" :closable="false" show-icon />
         </div>
-        
-        <el-button 
-          type="primary" 
-          size="small" 
-          @click="handleCheckDBStatus" 
+
+        <el-button
+          type="primary"
+          size="small"
+          @click="handleCheckDBStatus"
           :loading="checkingStatus"
           style="margin-top: 10px;"
         >
@@ -123,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useDBStatus } from '../composables/useDBStatus'
 
 const props = defineProps<{
@@ -136,18 +162,25 @@ const localConfig = ref({
 })
 
 const { dbStatus, loading: checkingStatus, checkDBStatus } = useDBStatus()
-const formatNumber = (n: number) => {
+
+const formatNumber = (n: any) => {
+  if (n === null || n === undefined) return '—'
+  const num = Number(n)
+  if (!Number.isFinite(num)) return '—'
   try {
-    return new Intl.NumberFormat('zh-CN').format(n)
+    return new Intl.NumberFormat('zh-CN').format(num)
   } catch {
-    return String(n)
+    return String(num)
   }
 }
 
-const formatBytes = (bytes: number) => {
-  if (!Number.isFinite(bytes)) return String(bytes)
+const formatBytes = (bytes: any) => {
+  if (bytes === null || bytes === undefined) return '—'
+  const num = Number(bytes)
+  if (!Number.isFinite(num) || num < 0) return '—'
+
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let v = bytes
+  let v = num
   let i = 0
   while (v >= 1024 && i < units.length - 1) {
     v /= 1024
@@ -156,67 +189,135 @@ const formatBytes = (bytes: number) => {
   return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`
 }
 
-const formatTs = (ts: number) => {
-  if (!Number.isFinite(ts)) return String(ts)
-  return new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false })
+const formatTs = (ts: any) => {
+  if (ts === null || ts === undefined) return '—'
+  const num = Number(ts)
+  if (!Number.isFinite(num) || num <= 0) return '—'
+  return new Date(num * 1000).toLocaleString('zh-CN', { hour12: false })
 }
 
+const formatSynchronous = (v: any) => {
+  if (v === null || v === undefined) return '—'
+  const s = String(v).trim()
+  if (!s) return '—'
 
-watch(() => props.config, (newConfig) => {
-  if (!newConfig) return
-  
-  if (newConfig.metrics_storage) {
-    localConfig.value.enabled = newConfig.metrics_storage.enabled || false
-    localConfig.value.db_path = newConfig.metrics_storage.db_path || ''
-  } else {
-    localConfig.value.enabled = false
-    localConfig.value.db_path = ''
+  // PRAGMA synchronous 可能返回数字
+  const n = Number(s)
+  if (Number.isFinite(n)) {
+    switch (n) {
+      case 0:
+        return 'OFF(0)'
+      case 1:
+        return 'NORMAL(1)'
+      case 2:
+        return 'FULL(2)'
+      case 3:
+        return 'EXTRA(3)'
+      default:
+        return `${n}`
+    }
   }
-}, { immediate: true, deep: true })
-
-// 检查数据库状态（使用共享的 composable）
-const handleCheckDBStatus = async () => {
-  await checkDBStatus(true) // true 表示显示消息提示
+  return s
 }
 
-// 获取配置（供父组件调用）
+const formatCacheSize = (v: any) => {
+  if (v === null || v === undefined) return '—'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+
+  // SQLite: cache_size > 0 表示页数；< 0 表示 KB
+  if (n < 0) {
+    return `${Math.abs(n)} KB`
+  }
+  return `${n} pages`
+}
+
+const pageBytesTotal = computed(() => {
+  const ps = Number(dbStatus.value?.page_size)
+  const pc = Number(dbStatus.value?.page_count)
+  if (!Number.isFinite(ps) || !Number.isFinite(pc) || ps <= 0 || pc <= 0) return null
+  return ps * pc
+})
+
+const freeBytesTotal = computed(() => {
+  const ps = Number(dbStatus.value?.page_size)
+  const fc = Number(dbStatus.value?.freelist_count)
+  if (!Number.isFinite(ps) || !Number.isFinite(fc) || ps <= 0 || fc <= 0) return null
+  return ps * fc
+})
+
+const walShmBytesTotal = computed(() => {
+  const wal = Number(dbStatus.value?.wal_file_size_bytes) || 0
+  const shm = Number(dbStatus.value?.shm_file_size_bytes) || 0
+  const total = wal + shm
+  return total > 0 ? total : null
+})
+
+const fragRateText = computed(() => {
+  const pc = Number(dbStatus.value?.page_count)
+  const fc = Number(dbStatus.value?.freelist_count)
+  if (!Number.isFinite(pc) || !Number.isFinite(fc) || pc <= 0) return '—'
+  const rate = (fc / pc) * 100
+  return `${rate.toFixed(2)}%`
+})
+
+watch(
+  () => props.config,
+  (newConfig) => {
+    if (!newConfig) return
+
+    if (newConfig.metrics_storage) {
+      localConfig.value.enabled = newConfig.metrics_storage.enabled || false
+      localConfig.value.db_path = newConfig.metrics_storage.db_path || ''
+    } else {
+      localConfig.value.enabled = false
+      localConfig.value.db_path = ''
+    }
+  },
+  { immediate: true, deep: true },
+)
+
+const handleCheckDBStatus = async () => {
+  await checkDBStatus(true)
+}
+
 const getConfig = () => {
   return {
     metrics_storage: {
       enabled: localConfig.value.enabled || false,
       db_path: localConfig.value.db_path || '',
-    }
+    },
   }
 }
 
-// 监听配置变化，自动检查状态
-watch(() => localConfig.value.enabled, (enabled) => {
-  if (enabled) {
-    // 延迟一下，等待后端配置更新
-    setTimeout(() => {
-      checkDBStatus(false) // false 表示不显示消息提示
-    }, 1000)
-  } else {
-    dbStatus.value = null
-  }
-})
+watch(
+  () => localConfig.value.enabled,
+  (enabled) => {
+    if (enabled) {
+      setTimeout(() => {
+        checkDBStatus(false)
+      }, 1000)
+    } else {
+      dbStatus.value = null
+    }
+  },
+)
 
-// 监听路径变化
-watch(() => localConfig.value.db_path, () => {
-  if (localConfig.value.enabled) {
-    // 路径变化后延迟检查状态
-    setTimeout(() => {
-      checkDBStatus(true) // false 表示不显示消息提示
-    }, 1000)
-  }
-})
+watch(
+  () => localConfig.value.db_path,
+  () => {
+    if (localConfig.value.enabled) {
+      setTimeout(() => {
+        checkDBStatus(true)
+      }, 1000)
+    }
+  },
+)
 
-onMounted(() => {
-  
-})
+onMounted(() => {})
 
 defineExpose({
-  getConfig
+  getConfig,
 })
 </script>
 
@@ -233,7 +334,6 @@ defineExpose({
 
 .config-page :deep(.el-card__body) {
   padding: 24px;
-  max-width: 800px;
 }
 
 .config-page h3 {
@@ -264,7 +364,8 @@ defineExpose({
   line-height: 1.4;
 }
 
-.status-card, .info-card {
+.status-card,
+.info-card {
   margin-top: 24px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
@@ -276,6 +377,21 @@ defineExpose({
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.status-detail-table :deep(.el-descriptions__label) {
+  white-space: nowrap;
+  width: 140px;
+}
+
+.status-detail-table :deep(.el-descriptions__content) {
+  word-break: break-all;
 }
 
 .info-list {
