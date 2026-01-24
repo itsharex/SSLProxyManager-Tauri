@@ -96,6 +96,10 @@ export async function GetMetricsDBStatus() {
   return await invoke('get_metrics_db_status');
 }
 
+export async function GetMetricsDBStatusDetail() {
+  return await invoke('get_metrics_db_status_detail');
+}
+
 export async function TestMetricsDBConnection(dbPath: string) {
   return await invoke('test_metrics_db_connection', { dbPath });
 }

@@ -17,7 +17,9 @@ mod update;
 
 fn main() {
     // 初始化日志
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_timer(tracing_subscriber::fmt::time::ChronoLocal::rfc_3339())
+        .init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -53,6 +55,7 @@ fn main() {
             commands::get_blacklist_entries,
             commands::refresh_blacklist_cache,
             commands::get_metrics_db_status,
+            commands::get_metrics_db_status_detail,
             commands::test_metrics_db_connection,
             commands::open_cert_file_dialog,
             commands::open_key_file_dialog,

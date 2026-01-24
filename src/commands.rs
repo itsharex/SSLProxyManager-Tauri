@@ -201,6 +201,13 @@ pub fn get_metrics_db_status() -> Result<metrics::MetricsDBStatus, String> {
 }
 
 #[tauri::command]
+pub async fn get_metrics_db_status_detail() -> Result<metrics::MetricsDBStatus, String> {
+    metrics::get_metrics_db_status_detail()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn test_metrics_db_connection(db_path: String) -> Result<(bool, String), String> {
     metrics::test_metrics_db_connection(db_path)
         .await
@@ -382,7 +389,6 @@ pub async fn set_listen_rule_enabled(
 
     app.restart();
 }
-
 #[tauri::command]
 pub async fn export_current_config_toml(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let cfg_path = crate::config::get_config_path().map_err(|e| e.to_string())?;

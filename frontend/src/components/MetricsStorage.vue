@@ -41,6 +41,10 @@
               <div class="status-detail">
                 <p><strong>数据库路径：</strong>{{ dbStatus.path }}</p>
                 <p><strong>文件状态：</strong>已创建</p>
+                <p v-if="dbStatus.db_file_size_bytes != null"><strong>文件大小：</strong>{{ formatBytes(dbStatus.db_file_size_bytes) }}</p>
+                <p v-if="dbStatus.request_logs_count != null"><strong>记录行数：</strong>{{ formatNumber(dbStatus.request_logs_count) }}</p>
+                <p v-if="dbStatus.request_logs_min_ts != null"><strong>最早记录：</strong>{{ formatTs(dbStatus.request_logs_min_ts) }}</p>
+                <p v-if="dbStatus.request_logs_max_ts != null"><strong>最新记录：</strong>{{ formatTs(dbStatus.request_logs_max_ts) }}</p>
               </div>
             </template>
           </el-alert>
@@ -121,8 +125,6 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { TestMetricsDBConnection } from '../api'
 import { useDBStatus } from '../composables/useDBStatus'
 
 const props = defineProps<{
@@ -135,25 +137,41 @@ const localConfig = ref({
 })
 
 const { dbStatus, loading: checkingStatus, checkDBStatus } = useDBStatus()
-const testingConnection = ref(false)
+const formatNumber = (n: number) => {
+  try {
+    return new Intl.NumberFormat('zh-CN').format(n)
+  } catch {
+    return String(n)
+  }
+}
 
-// 防止循环更新的标志位
-let isUpdatingFromProps = false
+const formatBytes = (bytes: number) => {
+  if (!Number.isFinite(bytes)) return String(bytes)
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let v = bytes
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`
+}
+
+const formatTs = (ts: number) => {
+  if (!Number.isFinite(ts)) return String(ts)
+  return new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false })
+}
+
 
 watch(() => props.config, (newConfig) => {
   if (!newConfig) return
   
-  isUpdatingFromProps = true
-  try {
-    if (newConfig.metrics_storage) {
-      localConfig.value.enabled = newConfig.metrics_storage.enabled || false
-      localConfig.value.db_path = newConfig.metrics_storage.db_path || ''
-    } else {
-      localConfig.value.enabled = false
-      localConfig.value.db_path = ''
-    }
-  } finally {
-    isUpdatingFromProps = false
+  if (newConfig.metrics_storage) {
+    localConfig.value.enabled = newConfig.metrics_storage.enabled || false
+    localConfig.value.db_path = newConfig.metrics_storage.db_path || ''
+  } else {
+    localConfig.value.enabled = false
+    localConfig.value.db_path = ''
   }
 }, { immediate: true, deep: true })
 

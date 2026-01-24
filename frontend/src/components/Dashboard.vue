@@ -127,16 +127,43 @@
               <el-empty v-if="topRouteErr.length===0" description="暂无" :image-size="60" />
             </div>
           </el-card>
+
           <el-card class="table" shadow="never">
             <template #header>
-              <div class="table-title">Top Upstream 错误</div>
+              <div class="table-title">Top Paths</div>
             </template>
             <div class="rows">
-              <div v-for="(it, idx) in topUpErr" :key="idx" class="row">
-                <div class="k">{{ it.key }}</div>
-                <div class="v">{{ it.value }}</div>
+              <div v-for="(it, idx) in topPaths" :key="idx" class="row">
+                <div class="k">{{ it.item }}</div>
+                <div class="v">{{ it.count }}</div>
               </div>
-              <el-empty v-if="topUpErr.length===0" description="暂无" :image-size="60" />
+              <el-empty v-if="topPaths.length===0" description="暂无" :image-size="60" />
+            </div>
+          </el-card>
+
+          <el-card class="table" shadow="never">
+            <template #header>
+              <div class="table-title">Top Client IPs</div>
+            </template>
+            <div class="rows">
+              <div v-for="(it, idx) in topClientIps" :key="idx" class="row">
+                <div class="k">{{ it.item }}</div>
+                <div class="v">{{ it.count }}</div>
+              </div>
+              <el-empty v-if="topClientIps.length===0" description="暂无" :image-size="60" />
+            </div>
+          </el-card>
+
+          <el-card class="table" shadow="never">
+            <template #header>
+              <div class="table-title">Top Upstream(错误)</div>
+            </template>
+            <div class="rows">
+              <div v-for="(it, idx) in topUpstreamErrors" :key="idx" class="row">
+                <div class="k">{{ it.item }}</div>
+                <div class="v">{{ it.count }}</div>
+              </div>
+              <el-empty v-if="topUpstreamErrors.length===0" description="暂无" :image-size="60" />
             </div>
           </el-card>
         </div>
@@ -229,6 +256,9 @@ type MetricsSeries = {
 type DashboardStatsResponse = {
   top_routes?: Array<{ item: string; count: number }>
   top_route_errors?: Array<{ item: string; count: number }>
+  top_paths?: Array<{ item: string; count: number }>
+  top_ips?: Array<{ item: string; count: number }>
+  top_upstream_errors?: Array<{ item: string; count: number }>
 }
 
 type MetricsPayload = {
@@ -240,6 +270,9 @@ type MetricsPayload = {
   byListenMinute?: Record<string, MetricsSeries>
 
   topRoutes?: Array<{ item: string; count: number }>
+  topPaths?: Array<{ item: string; count: number }>
+  topClientIps?: Array<{ item: string; count: number }>
+  topUpstreamErrors?: Array<{ item: string; count: number }>
 }
 
 const listenAddrs = ref<string[]>(['全局'])
@@ -578,6 +611,9 @@ const topUpErr = computed(() => {
 
 // Top Routes（matched_route_id）来源：后端 get_dashboard_stats
 const topRoutes = ref<Array<{ item: string; count: number }>>([])
+const topPaths = ref<Array<{ item: string; count: number }>>([])
+const topClientIps = ref<Array<{ item: string; count: number }>>([])
+const topUpstreamErrors = ref<Array<{ item: string; count: number }>>([])
 
 const fetchTopRoutes = async () => {
   if (!props.isActive) return
@@ -607,6 +643,19 @@ const fetchTopRoutes = async () => {
     topRoutes.value = list
       .filter((it) => it && typeof it.item === 'string' && it.item.trim() !== '')
       .map((it) => ({ item: it.item, count: Number(it.count) || 0 }))
+
+    // 历史模式下的 Top（来自 get_dashboard_stats）
+    topPaths.value = Array.isArray(res?.top_paths)
+      ? res.top_paths.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
+      : []
+
+    topClientIps.value = Array.isArray(res?.top_ips)
+      ? res.top_ips.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
+      : []
+
+    topUpstreamErrors.value = Array.isArray(res?.top_upstream_errors)
+      ? res.top_upstream_errors.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
+      : []
   } catch (e) {
     topRoutes.value = []
   }
@@ -679,8 +728,11 @@ const loadHistoricalData = async () => {
 // 清除历史数据
 const clearHistoricalData = () => {
   historicalData.value = null
-  // 清除历史数据时同步清空 Top Routes（避免误以为还在历史模式）
+  // 清除历史数据时同步清空 Top（避免误以为还在历史模式）
   topRoutes.value = []
+  topPaths.value = []
+  topClientIps.value = []
+  topUpstreamErrors.value = []
   ElMessage.info('已清除历史数据')
 }
 
@@ -1220,6 +1272,15 @@ const processMetricsPayload = (payload: MetricsPayload) => {
     topRoutes.value = Array.isArray(payload.topRoutes)
       ? payload.topRoutes.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
       : []
+    topPaths.value = Array.isArray(payload.topPaths)
+      ? payload.topPaths.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
+      : []
+    topClientIps.value = Array.isArray(payload.topClientIps)
+      ? payload.topClientIps.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
+      : []
+    topUpstreamErrors.value = Array.isArray(payload.topUpstreamErrors)
+      ? payload.topUpstreamErrors.map((it) => ({ item: String(it.item || ''), count: Number(it.count) || 0 }))
+      : []
   }
 
   if (selectedListen.value !== '全局' && !listenAddrs.value.includes(selectedListen.value)) {
@@ -1286,6 +1347,9 @@ const startPolling = () => {
         minuteWindowSeconds: payload.minuteWindowSeconds,
         byListenMinute: convertMetricsSeriesMap(payload.byListenMinute),
         topRoutes: payload.topRoutes,
+        topPaths: payload.topPaths,
+        topClientIps: payload.topClientIps,
+        topUpstreamErrors: payload.topUpstreamErrors,
       }
       processMetricsPayload(converted)
 

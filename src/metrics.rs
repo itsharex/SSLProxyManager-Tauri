@@ -13,6 +13,9 @@ use std::time::{Duration, Instant};
 const DB_FLUSH_BATCH_SIZE: usize = 2000;
 const DB_FLUSH_INTERVAL: Duration = Duration::from_secs(5);
 
+const REQUEST_LOG_RETENTION_DAYS: i64 = 730;
+const REQUEST_LOG_RETENTION_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+
 static DB_POOL: Lazy<RwLock<Option<Arc<SqlitePool>>>> = Lazy::new(|| RwLock::new(None));
 static DB_PATH: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(String::new()));
 static DB_ERROR: Lazy<RwLock<Option<String>>> = Lazy::new(|| RwLock::new(None));
@@ -146,6 +149,8 @@ pub struct DashboardStatsResponse {
     pub top_ips: Vec<TopListItem>,
     pub top_routes: Vec<TopListItem>,
     pub top_route_errors: Vec<TopListItem>,
+    #[serde(default)]
+    pub top_upstream_errors: Vec<TopListItem>,
     pub total_requests: i64,
     pub success_rate: f64,
     pub avg_latency_ms: f64,
@@ -166,6 +171,52 @@ pub struct RequestLogInsert {
     pub user_agent: String,
     pub referer: String,
     pub matched_route_id: String,
+}
+
+#[inline]
+fn normalize_request_path_for_top(path: &str) -> String {
+    let p = path.trim();
+    if p.is_empty() {
+        return "(empty)".to_string();
+    }
+    let without_query = p.split('?').next().unwrap_or(p);
+    if without_query.is_empty() {
+        return "(empty)".to_string();
+    }
+
+    let mut out = String::with_capacity(without_query.len());
+    for seg in without_query.split('/') {
+        if seg.is_empty() {
+            continue;
+        }
+        out.push('/');
+        if seg.len() <= 20 && seg.chars().all(|c| c.is_ascii_digit()) {
+            out.push_str(":id");
+        } else {
+            out.push_str(seg);
+        }
+    }
+
+    if out.is_empty() {
+        "/".to_string()
+    } else {
+        out
+    }
+}
+
+#[inline]
+fn normalize_upstream_for_top(upstream: &str) -> String {
+    let s = upstream.trim();
+    if s.is_empty() {
+        return "(empty)".to_string();
+    }
+    let s = s
+        .strip_prefix("https://")
+        .or_else(|| s.strip_prefix("http://"))
+        .unwrap_or(s);
+    let s = s.strip_prefix("www.").unwrap_or(s);
+    let host = s.split('/').next().unwrap_or(s);
+    host.to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -217,6 +268,12 @@ pub struct MetricsPayload {
     pub by_listen_minute: Option<HashMap<String, MetricsSeries>>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "topRoutes")]
     pub top_routes: Option<Vec<TopListItem>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "topPaths")]
+    pub top_paths: Option<Vec<TopListItem>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "topClientIps")]
+    pub top_client_ips: Option<Vec<TopListItem>>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "topUpstreamErrors")]
+    pub top_upstream_errors: Option<Vec<TopListItem>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -327,6 +384,9 @@ struct RealtimeAgg {
     per_sec: HashMap<String, RtSeriesAgg>,
     per_min: HashMap<String, RtSeriesAgg>,
     route_counts: HashMap<String, HashMap<String, i64>>,
+    path_counts: HashMap<String, HashMap<String, i64>>,
+    ip_counts: HashMap<String, HashMap<String, i64>>,
+    upstream_error_counts: HashMap<String, HashMap<String, i64>>,
 }
 
 impl RealtimeAgg {
@@ -341,11 +401,32 @@ impl RealtimeAgg {
         status_code: i32,
         latency_ms: f64,
         matched_route_id: &str,
+        request_path: &str,
+        client_ip: &str,
+        upstream: &str,
     ) {
-        self.add_one("全局", ts_sec, status_code, latency_ms, matched_route_id);
+        self.add_one(
+            "全局",
+            ts_sec,
+            status_code,
+            latency_ms,
+            matched_route_id,
+            request_path,
+            client_ip,
+            upstream,
+        );
         let la = listen_addr.trim();
         if !la.is_empty() {
-            self.add_one(la, ts_sec, status_code, latency_ms, matched_route_id);
+            self.add_one(
+                la,
+                ts_sec,
+                status_code,
+                latency_ms,
+                matched_route_id,
+                request_path,
+                client_ip,
+                upstream,
+            );
         }
     }
 
@@ -356,6 +437,9 @@ impl RealtimeAgg {
         status_code: i32,
         latency_ms: f64,
         matched_route_id: &str,
+        request_path: &str,
+        client_ip: &str,
+        upstream: &str,
     ) {
         let min_ts = (ts_sec / 60) * 60;
 
@@ -372,6 +456,27 @@ impl RealtimeAgg {
         if !rid.is_empty() {
             let m = self.route_counts.entry(key.to_string()).or_default();
             *m.entry(rid.to_string()).or_insert(0) += 1;
+        }
+
+        // Top request_path 实时聚合
+        let p = normalize_request_path_for_top(request_path);
+        {
+            let m = self.path_counts.entry(key.to_string()).or_default();
+            *m.entry(p).or_insert(0) += 1;
+        }
+
+        // Top client_ip 实时聚合
+        let ip = client_ip.trim();
+        if !ip.is_empty() {
+            let m = self.ip_counts.entry(key.to_string()).or_default();
+            *m.entry(ip.to_string()).or_insert(0) += 1;
+        }
+
+        // Top upstream(错误) 实时聚合
+        if status_code >= 400 {
+            let up = normalize_upstream_for_top(upstream);
+            let m = self.upstream_error_counts.entry(key.to_string()).or_default();
+            *m.entry(up).or_insert(0) += 1;
         }
     }
 
@@ -395,7 +500,7 @@ impl RealtimeAgg {
             by_listen_minute.insert(k.clone(), v.to_metrics_series());
         }
 
-        let mut top_routes: Vec<TopListItem> = self
+        let top_routes: Vec<TopListItem> = self
             .route_counts
             .get("全局")
             .map(|m| {
@@ -418,6 +523,63 @@ impl RealtimeAgg {
             // 如果全局为空，尽量给一个空的 None，减少前端处理
         }
 
+        let top_paths: Vec<TopListItem> = self
+            .path_counts
+            .get("全局")
+            .map(|m| {
+                let mut v: Vec<TopListItem> = m
+                    .iter()
+                    .map(|(k, c)| TopListItem {
+                        item: k.clone(),
+                        count: *c,
+                    })
+                    .collect();
+                v.sort_by(|a, b| b.count.cmp(&a.count));
+                if v.len() > 10 {
+                    v.truncate(10);
+                }
+                v
+            })
+            .unwrap_or_default();
+
+        let top_client_ips: Vec<TopListItem> = self
+            .ip_counts
+            .get("全局")
+            .map(|m| {
+                let mut v: Vec<TopListItem> = m
+                    .iter()
+                    .map(|(k, c)| TopListItem {
+                        item: k.clone(),
+                        count: *c,
+                    })
+                    .collect();
+                v.sort_by(|a, b| b.count.cmp(&a.count));
+                if v.len() > 10 {
+                    v.truncate(10);
+                }
+                v
+            })
+            .unwrap_or_default();
+
+        let top_upstream_errors: Vec<TopListItem> = self
+            .upstream_error_counts
+            .get("全局")
+            .map(|m| {
+                let mut v: Vec<TopListItem> = m
+                    .iter()
+                    .map(|(k, c)| TopListItem {
+                        item: k.clone(),
+                        count: *c,
+                    })
+                    .collect();
+                v.sort_by(|a, b| b.count.cmp(&a.count));
+                if v.len() > 10 {
+                    v.truncate(10);
+                }
+                v
+            })
+            .unwrap_or_default();
+
         MetricsPayload {
             window_seconds: REALTIME_WINDOW_SECS as i32,
             listen_addrs,
@@ -425,6 +587,9 @@ impl RealtimeAgg {
             minute_window_seconds: Some(REALTIME_MINUTE_WINDOW_SECS as i32),
             by_listen_minute: Some(by_listen_minute),
             top_routes: if top_routes.is_empty() { None } else { Some(top_routes) },
+            top_paths: if top_paths.is_empty() { None } else { Some(top_paths) },
+            top_client_ips: if top_client_ips.is_empty() { None } else { Some(top_client_ips) },
+            top_upstream_errors: if top_upstream_errors.is_empty() { None } else { Some(top_upstream_errors) },
         }
     }
 }
@@ -614,6 +779,14 @@ pub struct MetricsDBStatus {
     pub dir_exists: bool,
     pub dir_writable: bool,
     pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_logs_count: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_logs_min_ts: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_logs_max_ts: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub db_file_size_bytes: Option<i64>,
 }
 
 pub fn get_metrics_db_status() -> MetricsDBStatus {
@@ -644,6 +817,20 @@ pub fn get_metrics_db_status() -> MetricsDBStatus {
         }
     }
 
+    let request_logs_count: Option<i64> = None;
+    let request_logs_min_ts: Option<i64> = None;
+    let request_logs_max_ts: Option<i64> = None;
+
+    // 注意：此函数是同步函数（给 tauri command 同步调用）。
+    // 为避免在非 async 里 await，这里不直接查 DB。
+    // 如果需要实时行数/时间范围，请使用后续可扩展的 async 版本接口。
+
+    let db_file_size_bytes: Option<i64> = if file_exists {
+        std::fs::metadata(&path).ok().map(|m| m.len() as i64)
+    } else {
+        None
+    };
+
     MetricsDBStatus {
         enabled: initialized,
         initialized,
@@ -653,7 +840,35 @@ pub fn get_metrics_db_status() -> MetricsDBStatus {
         dir_exists,
         dir_writable,
         message,
+        request_logs_count,
+        request_logs_min_ts,
+        request_logs_max_ts,
+        db_file_size_bytes,
     }
+}
+
+pub async fn get_metrics_db_status_detail() -> Result<MetricsDBStatus> {
+    let base = get_metrics_db_status();
+    if !base.initialized {
+        return Ok(base);
+    }
+
+    let Some(pool) = pool() else {
+        return Ok(base);
+    };
+
+    let (cnt, min_ts, max_ts) = sqlx::query_as::<_, (i64, Option<i64>, Option<i64>)>(
+        "SELECT COUNT(1) AS cnt, MIN(timestamp) AS min_ts, MAX(timestamp) AS max_ts FROM request_logs",
+    )
+    .fetch_one(&*pool)
+    .await?;
+
+    Ok(MetricsDBStatus {
+        request_logs_count: Some(cnt),
+        request_logs_min_ts: min_ts,
+        request_logs_max_ts: max_ts,
+        ..base
+    })
 }
 
 pub async fn test_metrics_db_connection(db_path: String) -> Result<(bool, String)> {
@@ -768,6 +983,7 @@ pub async fn init_request_log_writer() {
         let mut buf: Vec<RequestLogInsert> = Vec::with_capacity(DB_FLUSH_BATCH_SIZE);
         let mut last_flush = Instant::now();
         let mut last_cleanup = Instant::now();
+        let mut last_retention_check = Instant::now();
 
         loop {
             tokio::select! {
@@ -795,6 +1011,24 @@ pub async fn init_request_log_writer() {
                 }
                 last_cleanup = Instant::now();
             }
+
+            // request_logs 日志保留：每天检查一次
+            if last_retention_check.elapsed() >= REQUEST_LOG_RETENTION_CHECK_INTERVAL {
+                let pool_opt = DB_POOL.read().clone();
+                if let Some(pool) = pool_opt {
+                    let cutoff = chrono::Utc::now().timestamp() - REQUEST_LOG_RETENTION_DAYS * 24 * 60 * 60;
+                    let _ = sqlx::query("DELETE FROM request_logs WHERE timestamp < ?")
+                        .bind(cutoff)
+                        .execute(&*pool)
+                        .await;
+
+                    // WAL 模式下，做一次 checkpoint 尽量回收 WAL（不强制）
+                    let _ = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+                        .execute(&*pool)
+                        .await;
+                }
+                last_retention_check = Instant::now();
+            }
         }
     });
 }
@@ -812,6 +1046,9 @@ pub fn try_enqueue_request_log(log: RequestLogInsert) {
             log.status_code,
             log.latency_ms,
             &log.matched_route_id,
+            &log.request_path,
+            &log.client_ip,
+            &log.upstream,
         );
     }
 
@@ -999,6 +1236,30 @@ pub fn get_metrics() -> MetricsPayload {
             let dst = merged.route_counts.entry(k.clone()).or_default();
             for (rid, cnt) in m.iter() {
                 *dst.entry(rid.clone()).or_insert(0) += *cnt;
+            }
+        }
+
+        // top paths
+        for (k, m) in guard.path_counts.iter() {
+            let dst = merged.path_counts.entry(k.clone()).or_default();
+            for (p, cnt) in m.iter() {
+                *dst.entry(p.clone()).or_insert(0) += *cnt;
+            }
+        }
+
+        // top ips
+        for (k, m) in guard.ip_counts.iter() {
+            let dst = merged.ip_counts.entry(k.clone()).or_default();
+            for (ip, cnt) in m.iter() {
+                *dst.entry(ip.clone()).or_insert(0) += *cnt;
+            }
+        }
+
+        // top upstream errors
+        for (k, m) in guard.upstream_error_counts.iter() {
+            let dst = merged.upstream_error_counts.entry(k.clone()).or_default();
+            for (up, cnt) in m.iter() {
+                *dst.entry(up.clone()).or_insert(0) += *cnt;
             }
         }
     }
@@ -1284,6 +1545,21 @@ pub async fn get_dashboard_stats(req: DashboardStatsRequest) -> Result<Dashboard
     route_err_qb.push(" GROUP BY matched_route_id ORDER BY count DESC LIMIT 10");
     let top_route_errors = route_err_qb.build_query_as::<TopListItem>().fetch_all(&*pool).await?;
 
+    // Top upstream errors
+    let mut up_err_qb = QueryBuilder::new(
+        "SELECT upstream AS item, COUNT(1) AS count FROM request_logs WHERE timestamp >= ",
+    );
+    up_err_qb
+        .push_bind(req.start_time)
+        .push(" AND timestamp <= ")
+        .push_bind(req.end_time);
+    up_err_qb.push(" AND status_code >= 400");
+    if let Some(v) = listen_addr {
+        up_err_qb.push(" AND listen_addr = ").push_bind(v);
+    }
+    up_err_qb.push(" GROUP BY upstream ORDER BY count DESC LIMIT 10");
+    let top_upstream_errors = up_err_qb.build_query_as::<TopListItem>().fetch_all(&*pool).await?;
+
     // Overall
     let mut ov_qb = QueryBuilder::new("SELECT COUNT(1) AS total, SUM(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1 ELSE 0 END) AS ok, AVG(latency_ms) AS avg_latency FROM request_logs WHERE timestamp >= ");
     ov_qb.push_bind(req.start_time).push(" AND timestamp <= ").push_bind(req.end_time);
@@ -1302,6 +1578,7 @@ pub async fn get_dashboard_stats(req: DashboardStatsRequest) -> Result<Dashboard
         top_ips,
         top_routes,
         top_route_errors,
+        top_upstream_errors,
         total_requests,
         success_rate,
         avg_latency_ms: avg_latency.unwrap_or(0.0),

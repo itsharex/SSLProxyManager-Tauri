@@ -1,7 +1,7 @@
 import { ref, Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 // @ts-ignore
-import { GetMetricsDBStatus } from '../api'
+import { GetMetricsDBStatusDetail } from '../api'
 
 export interface DBStatus {
   enabled: boolean
@@ -12,6 +12,10 @@ export interface DBStatus {
   dir_exists: boolean
   dir_writable: boolean
   message?: string
+  request_logs_count?: number
+  request_logs_min_ts?: number
+  request_logs_max_ts?: number
+  db_file_size_bytes?: number
 }
 
 // 全局数据库状态（所有组件共享同一份数据，但每个组件有独立的加载状态）
@@ -38,7 +42,7 @@ export const useDBStatus = () => {
   const checkDBStatus = async (showMessage = false): Promise<DBStatus | null> => {
     loading.value = true
     try {
-      const status = (await GetMetricsDBStatus()) as DBStatus
+      const status = (await GetMetricsDBStatusDetail()) as DBStatus
       // 更新共享状态
       sharedDBStatus.value = status
 
