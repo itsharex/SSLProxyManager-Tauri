@@ -1,4 +1,5 @@
 use crate::config;
+use crate::i18n;
 use crate::metrics;
 use crate::proxy;
 use crate::tray;
@@ -420,4 +421,17 @@ pub async fn export_current_config_toml(app: tauri::AppHandle) -> Result<Option<
     std::fs::write(&path, content).map_err(|e| format!("写入文件失败: {e}"))?;
 
     Ok(Some(path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+pub fn set_locale(locale: String) -> Result<(), String> {
+    i18n::set_locale(locale);
+    // 更新所有托盘菜单文本
+    tray::update_tray_menu_texts();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_locale() -> Result<String, String> {
+    Ok(i18n::get_locale())
 }

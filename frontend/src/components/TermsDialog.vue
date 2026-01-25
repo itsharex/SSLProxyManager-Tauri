@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { SetTermsAccepted, QuitApp } from '../api'
+import { SetTermsAccepted, QuitApp, SetLocale } from '../api'
 import { useI18n } from 'vue-i18n'
 
 const { t, locale } = useI18n()
@@ -74,8 +74,15 @@ const currentLocale = computed({
 })
 
 // 处理语言切换
-const handleLocaleChange = (val: string) => {
+const handleLocaleChange = async (val: string) => {
   currentLocale.value = val
+  // 同步到后端，更新托盘菜单
+  try {
+    // @ts-ignore
+    await SetLocale(val)
+  } catch (error) {
+    console.error('设置语言失败:', error)
+  }
 }
 
 const props = defineProps<{

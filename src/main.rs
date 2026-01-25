@@ -10,6 +10,7 @@ mod ws_proxy;
 mod stream_proxy;
 mod access_control;
 mod rate_limit;
+mod i18n;
 
 use tauri::Manager;
 
@@ -69,6 +70,8 @@ fn main() {
             commands::set_tray_proxy_state,
             commands::set_route_enabled,
             commands::set_listen_rule_enabled,
+            commands::set_locale,
+            commands::get_locale,
         ])
         .setup(|app| {
             // 初始化应用

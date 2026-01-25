@@ -112,7 +112,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { StartServer, StopServer, GetStatus, QuitApp, OpenURL, EventsOn, SetTrayProxyState } from './api'
+import { StartServer, StopServer, GetStatus, QuitApp, OpenURL, EventsOn, SetTrayProxyState, SetLocale } from './api'
 import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import TitleBar from './components/TitleBar.vue'
 import BaseConfig from './components/BaseConfig.vue'
@@ -206,8 +206,15 @@ const currentLocale = computed({
 })
 
 // 处理语言切换
-const handleLocaleChange = (val: string) => {
+const handleLocaleChange = async (val: string) => {
   currentLocale.value = val
+  // 同步到后端，更新托盘菜单
+  try {
+    // @ts-ignore
+    await SetLocale(val)
+  } catch (error) {
+    console.error('设置语言失败:', error)
+  }
 }
 
 // 全局主题状态
@@ -558,6 +565,15 @@ const handleMenuSelect = (key: string) => {
 onMounted(async () => {
   loadTheme()
   loadSidebarState()
+  
+  // 同步语言设置到后端（更新托盘菜单）
+  try {
+    const savedLocale = localStorage.getItem('locale') || 'zh-CN'
+    // @ts-ignore
+    await SetLocale(savedLocale)
+  } catch (error) {
+    console.error('同步语言设置失败:', error)
+  }
   
   // 启动自动主题切换（如果已启用）
   startAutoTheme()

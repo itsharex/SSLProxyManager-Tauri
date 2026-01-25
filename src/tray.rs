@@ -1,3 +1,4 @@
+use crate::i18n;
 use parking_lot::RwLock;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -9,6 +10,9 @@ struct TrayMenuHandles<R: tauri::Runtime> {
     status: MenuItem<R>,
     toggle: MenuItem<R>,
     restart: MenuItem<R>,
+    show: MenuItem<R>,
+    hide: MenuItem<R>,
+    quit: MenuItem<R>,
 }
 
 static TRAY_HANDLES: RwLock<Option<TrayMenuHandles<tauri::Wry>>> = RwLock::new(None);
@@ -17,11 +21,17 @@ fn store_tray_handles(
     status: MenuItem<tauri::Wry>,
     toggle: MenuItem<tauri::Wry>,
     restart: MenuItem<tauri::Wry>,
+    show: MenuItem<tauri::Wry>,
+    hide: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
 ) {
     *TRAY_HANDLES.write() = Some(TrayMenuHandles {
         status,
         toggle,
         restart,
+        show,
+        hide,
+        quit,
     });
 }
 
@@ -32,13 +42,36 @@ pub fn set_tray_proxy_state(running: bool) {
     };
 
     if running {
-        let _ = h.status.set_text("状态：运行中");
-        let _ = h.toggle.set_text("停止代理");
+        let _ = h.status.set_text(i18n::t(i18n::TrayText::StatusRunning));
+        let _ = h.toggle.set_text(i18n::t(i18n::TrayText::ToggleStop));
         let _ = h.restart.set_enabled(true);
     } else {
-        let _ = h.status.set_text("状态：已停止");
-        let _ = h.toggle.set_text("启动代理");
+        let _ = h.status.set_text(i18n::t(i18n::TrayText::StatusStopped));
+        let _ = h.toggle.set_text(i18n::t(i18n::TrayText::ToggleStart));
         let _ = h.restart.set_enabled(false);
+    }
+}
+
+pub fn update_tray_menu_texts() {
+    let handles = TRAY_HANDLES.read();
+    let Some(h) = handles.as_ref() else {
+        return;
+    };
+
+    // 更新所有菜单项的文本
+    let _ = h.show.set_text(i18n::t(i18n::TrayText::ShowWindow));
+    let _ = h.hide.set_text(i18n::t(i18n::TrayText::HideWindow));
+    let _ = h.restart.set_text(i18n::t(i18n::TrayText::RestartProxy));
+    let _ = h.quit.set_text(i18n::t(i18n::TrayText::Quit));
+    
+    // 同时更新状态和切换按钮（根据当前运行状态）
+    let running = crate::proxy::is_effectively_running();
+    if running {
+        let _ = h.status.set_text(i18n::t(i18n::TrayText::StatusRunning));
+        let _ = h.toggle.set_text(i18n::t(i18n::TrayText::ToggleStop));
+    } else {
+        let _ = h.status.set_text(i18n::t(i18n::TrayText::StatusStopped));
+        let _ = h.toggle.set_text(i18n::t(i18n::TrayText::ToggleStart));
     }
 }
 
@@ -51,14 +84,17 @@ const MENU_ID_QUIT: &str = "quit";
 
 pub fn init_tray(app: &AppHandle) -> tauri::Result<()> {
     // 由前端驱动托盘状态：这里仅创建菜单项，占位显示。
-    let status = MenuItem::with_id(app, MENU_ID_STATUS, "状态：-", false, None::<&str>)?;
-    let show = MenuItem::with_id(app, MENU_ID_SHOW, "显示窗口", true, None::<&str>)?;
-    let hide = MenuItem::with_id(app, MENU_ID_HIDE, "隐藏窗口", true, None::<&str>)?;
+    // 初始化时从 localStorage 读取语言设置（如果前端已设置）
+    // 默认使用 zh-CN，前端会在启动时调用 set_locale 更新
+    
+    let status = MenuItem::with_id(app, MENU_ID_STATUS, i18n::t(i18n::TrayText::StatusStopped), false, None::<&str>)?;
+    let show = MenuItem::with_id(app, MENU_ID_SHOW, i18n::t(i18n::TrayText::ShowWindow), true, None::<&str>)?;
+    let hide = MenuItem::with_id(app, MENU_ID_HIDE, i18n::t(i18n::TrayText::HideWindow), true, None::<&str>)?;
 
-    let toggle = MenuItem::with_id(app, MENU_ID_TOGGLE, "-", true, None::<&str>)?;
-    let restart = MenuItem::with_id(app, MENU_ID_RESTART, "重启代理", false, None::<&str>)?;
+    let toggle = MenuItem::with_id(app, MENU_ID_TOGGLE, i18n::t(i18n::TrayText::ToggleStart), true, None::<&str>)?;
+    let restart = MenuItem::with_id(app, MENU_ID_RESTART, i18n::t(i18n::TrayText::RestartProxy), false, None::<&str>)?;
 
-    let quit = MenuItem::with_id(app, MENU_ID_QUIT, "退出", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, MENU_ID_QUIT, i18n::t(i18n::TrayText::Quit), true, None::<&str>)?;
 
     let menu = Menu::with_items(
         app,
@@ -85,7 +121,7 @@ pub fn init_tray(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .icon(icon)
         .show_menu_on_left_click(false)
-        .tooltip("SSL 代理管理工具");
+        .tooltip(i18n::t(i18n::TrayText::Tooltip));
 
     #[cfg(target_os = "macos")]
     {
@@ -93,7 +129,7 @@ pub fn init_tray(app: &AppHandle) -> tauri::Result<()> {
     }
 
     // 保存句柄（给前端 invoke 的 command 用）
-    store_tray_handles(status.clone(), toggle.clone(), restart.clone());
+    store_tray_handles(status.clone(), toggle.clone(), restart.clone(), show.clone(), hide.clone(), quit.clone());
 
     let builder = builder
         .on_menu_event(move |app, event| match event.id().as_ref() {

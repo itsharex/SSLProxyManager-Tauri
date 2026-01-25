@@ -144,6 +144,15 @@ export async function QuitApp() {
   return await invoke('quit_app');
 }
 
+// 语言设置
+export async function SetLocale(locale: string) {
+  return await invoke('set_locale', { locale });
+}
+
+export async function GetLocale() {
+  return await invoke('get_locale');
+}
+
 // 条款接受状态（使用 localStorage）
 const TERMS_ACCEPTED_KEY = 'ssl_proxy_manager_terms_accepted'
 
