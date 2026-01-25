@@ -1,42 +1,44 @@
 # SSLProxyManager
 
-SSLProxyManager 是一个基于 **Tauri 2 + Rust** 的桌面代理管理工具，提供管理界面（前端：**Vue 3 + Vite + Element Plus**），用于配置与管理：
+SSLProxyManager is a desktop proxy management tool based on **Tauri 2 + Rust**, providing a management interface (frontend: **Vue 3 + Vite + Element Plus**) for configuring and managing:
 
-- HTTP/HTTPS 反向代理
-- WebSocket（WS/WSS）反向代理
-- Stream（TCP/UDP）四层代理
-- 静态资源托管
-- 访问控制（局域网/白名单）
-- 运行状态与日志查看
+- HTTP/HTTPS reverse proxy
+- WebSocket (WS/WSS) reverse proxy
+- Stream (TCP/UDP) Layer 4 proxy
+- Static resource hosting
+- Access control (LAN/whitelist)
+- Runtime status and log viewing
 
-## 功能概览
+**[中文文档 (Chinese Documentation)](README_zh.md)**
 
-- **HTTP/HTTPS 代理（rules/routes）**
-  - 多监听节点（`listen_addr`）
-  - TLS（证书/私钥）
+## Features Overview
+
+- **HTTP/HTTPS Proxy (rules/routes)**
+  - Multiple listen nodes (`listen_addr`)
+  - TLS (certificate/private key)
   - Basic Auth
-  - 路由（path 前缀匹配）
-  - Upstream 列表（权重）
-  - `proxy_pass_path` 路径改写
-  - 静态目录优先（`static_dir`）
-  - Header 注入（`set_headers`）
+  - Routing (path prefix matching)
+  - Upstream list (with weights)
+  - `proxy_pass_path` path rewriting
+  - Static directory priority (`static_dir`)
+  - Header injection (`set_headers`)
 
-- **WebSocket 代理（ws_proxy）**
-  - 每条 WS 规则可独立启用
-  - **新增：WS 全局开关 `ws_proxy_enabled`**（全局禁用时，WS 监听不会启动）
+- **WebSocket Proxy (ws_proxy)**
+  - Each WS rule can be independently enabled
+  - **New: WS global switch `ws_proxy_enabled`** (when globally disabled, WS listeners will not start)
 
-- **Stream 代理（TCP/UDP，stream）**
-  - `listen_port` 监听端口（TCP 或 UDP）
-  - `proxy_pass` 绑定 upstream 名称
-  - upstream 支持按客户端 IP 进行一致性选择（默认 `hash_key = "$remote_addr"`）
-  - `proxy_connect_timeout` / `proxy_timeout`（字符串形式，例：`300s`）
+- **Stream Proxy (TCP/UDP, stream)**
+  - `listen_port` listen port (TCP or UDP)
+  - `proxy_pass` binds to upstream name
+  - Upstream supports consistent selection by client IP (default `hash_key = "$remote_addr"`)
+  - `proxy_connect_timeout` / `proxy_timeout` (string format, e.g., `300s`)
 
-## 技术栈
+## Tech Stack
 
-- 后端：Rust（Tauri 2）
-- 前端：Vue 3、Vite、Element Plus
+- Backend: Rust (Tauri 2)
+- Frontend: Vue 3, Vite, Element Plus
 
-## 程序界面
+## Screenshots
 
 ![ScreenShot1](./screenshots/1.jpg)
 
@@ -48,118 +50,118 @@ SSLProxyManager 是一个基于 **Tauri 2 + Rust** 的桌面代理管理工具�
 
 ![ScreenShot5](./screenshots/5.jpg)
 
-## 目录结构
+## Directory Structure
 
-- `src/`：Rust 后端代码
-- `frontend/`：前端项目（Vite）
-- `tauri.conf.json`：Tauri 配置（dev/build 命令、devUrl、frontendDist 等）
-- `config.toml`：运行配置（开发模式下可放项目根目录）
-- `config.toml.example`：配置示例
+- `src/`: Rust backend code
+- `frontend/`: Frontend project (Vite)
+- `tauri.conf.json`: Tauri configuration (dev/build commands, devUrl, frontendDist, etc.)
+- `config.toml`: Runtime configuration (can be placed in project root in development mode)
+- `config.toml.example`: Configuration example
 
-## 环境要求
+## Requirements
 
 - Node.js + npm
-- Rust 工具链（stable）
+- Rust toolchain (stable)
 
-## 本地开发
+## Local Development
 
-### 1) 安装前端依赖
+### 1) Install Frontend Dependencies
 
 ```bash
 cd frontend
 npm install
 ```
 
-### 2) 启动 Tauri 开发模式
+### 2) Start Tauri Development Mode
 
-在项目根目录执行：
+Execute in the project root directory:
 
 ```bash
 npm run tauri:dev
 ```
 
-该命令会根据 `tauri.conf.json`：
+This command will, according to `tauri.conf.json`:
 
-- 先进入 `frontend` 并执行 `npm run dev`
-- 然后启动 Tauri 并加载 `http://localhost:5173`
+- First enter `frontend` and execute `npm run dev`
+- Then start Tauri and load `http://localhost:5173`
 
-## 构建发布
+## Build & Release
 
-在项目根目录执行：
+Execute in the project root directory:
 
 ```bash
 npm run tauri:build
 ```
 
-该命令会：
+This command will:
 
-- 先进入 `frontend` 并执行 `npm run build`（产物：`frontend/dist`）
-- 再由 Tauri 进行打包
+- First enter `frontend` and execute `npm run build` (output: `frontend/dist`)
+- Then package with Tauri
 
-## 配置说明（config.toml）
+## Configuration (config.toml)
 
-项目使用 TOML 进行配置。
+The project uses TOML for configuration.
 
-- **开发模式**（debug）：如果项目根目录存在 `config.toml`，优先读取它。
-- **Linux 生产模式**：默认位置 `~/.config/SSLProxyManager/config.toml`
+- **Development mode** (debug): If `config.toml` exists in the project root, it will be read with priority.
+- **Linux production mode**: Default location `~/.config/SSLProxyManager/config.toml`
 
-> 建议直接参考 `config.toml.example`。
+> It is recommended to refer directly to `config.toml.example`.
 
-### 1) HTTP/HTTPS 代理（rules）
+### 1) HTTP/HTTPS Proxy (rules)
 
-- `[[rules]]`：监听节点
-  - `listen_addr`：监听地址，例如 `:8888` 或 `0.0.0.0:1024`
-  - `ssl_enable`：是否启用 TLS
-  - `cert_file` / `key_file`：证书与私钥路径
+- `[[rules]]`: Listen node
+  - `listen_addr`: Listen address, e.g., `:8888` or `0.0.0.0:1024`
+  - `ssl_enable`: Whether to enable TLS
+  - `cert_file` / `key_file`: Certificate and private key paths
   - `basic_auth_enable` / `basic_auth_username` / `basic_auth_password`
-- `[[rules.routes]]`：路由
-  - `path`：Path 前缀匹配
-  - `static_dir`：静态目录（可选）
-  - `proxy_pass_path`：转发路径改写（可选）
-  - `exclude_basic_auth`：该路由是否跳过 Basic Auth（可选）
-  - `follow_redirects`：代理端是否跟随上游 30x（可选）
-  - `[rules.routes.set_headers]`：注入 Header（可选）
-  - `[[rules.routes.upstreams]]`：上游列表（可选）
+- `[[rules.routes]]`: Route
+  - `path`: Path prefix matching
+  - `static_dir`: Static directory (optional)
+  - `proxy_pass_path`: Forward path rewriting (optional)
+  - `exclude_basic_auth`: Whether this route skips Basic Auth (optional)
+  - `follow_redirects`: Whether the proxy follows upstream 30x redirects (optional)
+  - `[rules.routes.set_headers]`: Header injection (optional)
+  - `[[rules.routes.upstreams]]`: Upstream list (optional)
 
-### 2) WS 代理（ws_proxy）
+### 2) WS Proxy (ws_proxy)
 
-- **`ws_proxy_enabled`**：WS 全局开关（默认 `true`）
-  - `false`：不会启动 WS 监听（即使某条 ws rule enabled=true）
-  - `true`：再按每条 ws rule 的 `enabled` 生效
+- **`ws_proxy_enabled`**: WS global switch (default `true`)
+  - `false`: WS listeners will not start (even if a ws rule has enabled=true)
+  - `true`: Then each ws rule's `enabled` takes effect
 
-- `[[ws_proxy]]`：WS 监听规则列表
-  - `enabled`：是否启用该规则
-  - `listen_addr`：监听地址，例如 `0.0.0.0:8800`
-  - `ssl_enable`：是否启用 TLS（wss）
-  - `cert_file` / `key_file`：证书与私钥路径
+- `[[ws_proxy]]`: WS listen rule list
+  - `enabled`: Whether to enable this rule
+  - `listen_addr`: Listen address, e.g., `0.0.0.0:8800`
+  - `ssl_enable`: Whether to enable TLS (wss)
+  - `cert_file` / `key_file`: Certificate and private key paths
   - `[[ws_proxy.routes]]`
-    - `path`：Path 前缀
-    - `upstream_url`：上游 WS 地址，例如 `ws://127.0.0.1:9000`
+    - `path`: Path prefix
+    - `upstream_url`: Upstream WS address, e.g., `ws://127.0.0.1:9000`
 
-### 3) Stream（TCP/UDP）代理（stream）
+### 3) Stream (TCP/UDP) Proxy (stream)
 
-Stream 用于四层代理：监听一个 TCP/UDP 端口并转发到上游。
+Stream is used for Layer 4 proxy: listen on a TCP/UDP port and forward to upstream.
 
 - `[stream]`
-  - `enabled`：全局开关
+  - `enabled`: Global switch
   - `[[stream.upstreams]]`
-    - `name`：upstream 名称（供 `proxy_pass` 引用）
-    - `hash_key`：默认 `$remote_addr`（按客户端 IP 稳定选择上游）
-    - `consistent`：当前作为配置项保留
+    - `name`: Upstream name (referenced by `proxy_pass`)
+    - `hash_key`: Default `$remote_addr` (consistently select upstream by client IP)
+    - `consistent`: Currently reserved as a configuration item
     - `[[stream.upstreams.servers]]`
-      - `addr`：`host:port`
-      - `weight` / `max_fails` / `fail_timeout`：字段保留（可在后续增强策略）
+      - `addr`: `host:port`
+      - `weight` / `max_fails` / `fail_timeout`: Fields reserved (can be enhanced in future strategies)
   - `[[stream.servers]]`
-    - `enabled`：是否启用
-    - `listen_port`：监听端口
-    - `udp`：`false`=TCP，`true`=UDP
-    - `proxy_pass`：引用 upstream 的 `name`
-    - `proxy_connect_timeout`：例如 `300s`
-    - `proxy_timeout`：例如 `600s`
+    - `enabled`: Whether to enable
+    - `listen_port`: Listen port
+    - `udp`: `false`=TCP, `true`=UDP
+    - `proxy_pass`: Reference upstream's `name`
+    - `proxy_connect_timeout`: e.g., `300s`
+    - `proxy_timeout`: e.g., `600s`
 
-#### Nginx 示例对照
+#### Nginx Example Comparison
 
-你可以用下面的 Nginx stream 配置理解对应关系：
+You can use the following Nginx stream configuration to understand the correspondence:
 
 ```nginx
 stream {
@@ -177,19 +179,19 @@ stream {
 }
 ```
 
-在本项目中等价配置可参考 `config.toml.example` 的 `[stream]` 片段。
+The equivalent configuration in this project can be found in the `[stream]` section of `config.toml.example`.
 
-## 常见问题
+## FAQ
 
-- 前端开发服务器端口默认是 `5173`（见 `tauri.conf.json` 的 `devUrl`）。
-- 如果需要更改前端 dev/build 命令，请修改根目录 `tauri.conf.json` 的 `build.beforeDevCommand` / `build.beforeBuildCommand`。
+- The frontend development server port defaults to `5173` (see `devUrl` in `tauri.conf.json`).
+- If you need to change the frontend dev/build commands, please modify `build.beforeDevCommand` / `build.beforeBuildCommand` in the root directory's `tauri.conf.json`.
 
-## 免责声明
+## Disclaimer
 
-本项目仅用于学习与合法合规的网络代理/反向代理配置管理场景。使用本软件可能涉及网络访问控制、证书管理、流量转发等操作，存在但不限于数据泄露、服务中断、配置错误导致安全风险等潜在风险。你在使用本项目时需自行评估并承担全部风险与责任。
+This project is for learning and legal, compliant network proxy/reverse proxy configuration management scenarios only. Use of this software may involve network access control, certificate management, traffic forwarding, and other operations, with potential risks including but not limited to data leakage, service interruption, configuration errors leading to security risks, etc. You are responsible for evaluating and assuming all risks and responsibilities when using this project.
 
-- **合法合规**：请确保你的使用行为符合当地法律法规及相关网络服务条款。禁止将本项目用于任何未授权的渗透、攻击、绕过访问控制、窃取数据、传播恶意软件、侵犯他人隐私或其他任何违法违规用途。任何因你使用本项目从事违法违规或未授权行为所产生的法律责任、行政处罚、第三方索赔及相关后果，均由你自行承担，作者与贡献者不承担任何责任。
-- **无担保**：本项目按“现状”提供，不提供任何形式的明示或暗示担保（包括但不限于适用性、可靠性、准确性、可用性、无错误/无漏洞等）。
-- **责任限制**：对于因使用或无法使用本项目导致的任何直接或间接损失（包括但不限于利润损失、数据丢失、业务中断、设备或系统损坏等），作者与贡献者不承担任何责任。
+- **Legal Compliance**: Please ensure your use complies with local laws and regulations and relevant network service terms. It is prohibited to use this project for any unauthorized penetration, attacks, bypassing access controls, data theft, spreading malware, infringing on others' privacy, or any other illegal or unauthorized purposes. Any legal liability, administrative penalties, third-party claims, and related consequences arising from your use of this project for illegal, non-compliant, or unauthorized activities shall be borne by you, and the authors and contributors assume no responsibility.
+- **No Warranty**: This project is provided "as is" without any express or implied warranty (including but not limited to fitness, reliability, accuracy, availability, error-free/defect-free, etc.).
+- **Limitation of Liability**: The authors and contributors assume no responsibility for any direct or indirect losses (including but not limited to profit loss, data loss, business interruption, equipment or system damage, etc.) caused by the use or inability to use this project.
 
-如果你不同意上述条款，请勿使用、分发或基于本项目进行二次开发。
+If you do not agree to the above terms, please do not use, distribute, or develop based on this project.
