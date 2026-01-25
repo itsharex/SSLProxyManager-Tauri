@@ -10,73 +10,20 @@
     class="terms-dialog"
   >
     <div class="terms-content">
+      <div class="language-selector">
+        <el-select 
+          v-model="currentLocale" 
+          @change="handleLocaleChange" 
+          size="small" 
+          style="width: 120px;"
+        >
+          <el-option :label="$t('common.chinese')" value="zh-CN" />
+          <el-option :label="$t('common.english')" value="en-US" />
+        </el-select>
+      </div>
       <el-scrollbar height="500px">
         <div class="terms-text">
-          <h2>SSLProxyManager 使用条款与免责声明</h2>
-          
-          <h3>1. 软件性质</h3>
-          <p>
-            SSLProxyManager 是一个通用的反向代理管理工具，提供网络代理、负载均衡、内容分发等合法功能。
-            本软件是通用工具，有多种合法用途，不专门设计用于任何非法用途。
-          </p>
-
-          <h3>2. 合法使用</h3>
-          <p>您必须确保使用本软件的行为符合以下要求：</p>
-          <ul>
-            <li>遵守当地法律法规及相关网络服务条款</li>
-            <li>仅在您拥有或已获得授权的设备/网络上使用</li>
-            <li>不用于任何未授权的网络攻击、数据窃取、欺诈等非法用途</li>
-            <li>不用于绕过访问控制、侵犯他人隐私或其他违法违规行为</li>
-            <li>不用于传播恶意软件、进行网络攻击或破坏网络安全</li>
-          </ul>
-
-          <h3>3. 禁止用途</h3>
-          <p>严格禁止将本软件用于以下用途：</p>
-          <ul>
-            <li>未授权的网络攻击（如 DDoS、中间人攻击等）</li>
-            <li>数据窃取或隐私侵犯</li>
-            <li>欺诈行为（如钓鱼网站、内容篡改用于欺诈等）</li>
-            <li>绕过访问控制（未授权）</li>
-            <li>传播恶意软件</li>
-            <li>侵犯知识产权（如未授权内容修改、盗版分发等）</li>
-            <li>任何其他违法违规用途</li>
-          </ul>
-
-          <h3>4. 免责声明</h3>
-          <p>
-            <strong>本软件按"现状"提供，不提供任何形式的明示或暗示担保</strong>（包括但不限于适用性、可靠性、准确性、可用性、无错误/无漏洞等）。
-          </p>
-          <p>
-            <strong>对于因使用或无法使用本软件导致的任何直接或间接损失</strong>（包括但不限于利润损失、数据丢失、业务中断、设备或系统损坏等），
-            <strong>作者与贡献者不承担任何责任</strong>。
-          </p>
-          <p>
-            <strong>任何因您使用本软件从事违法违规或未授权行为所产生的法律责任、行政处罚、第三方索赔及相关后果，均由您自行承担，作者与贡献者不承担任何责任</strong>。
-          </p>
-
-          <h3>5. 用户责任</h3>
-          <p>
-            您在使用本软件时需自行评估并承担全部风险与责任。请确保您的使用行为符合当地法律法规及相关网络服务条款。
-            如果您不同意上述条款，请勿使用、分发或基于本项目进行二次开发。
-          </p>
-
-          <h3>6. 许可证</h3>
-          <p>
-            本软件采用 MIT 许可证。使用本软件即表示您同意遵守 MIT 许可证的条款。
-            详细信息请参阅 LICENSE 文件。
-          </p>
-
-          <h3>7. 特别提示</h3>
-          <p>
-            <strong>⚠️ 重要：</strong>本软件包含响应体修改等功能，这些功能可用于合法用途（如内容定制、广告过滤等），
-            但请确保：
-          </p>
-          <ul>
-            <li>仅在你拥有或已获得授权的设备/网络上使用</li>
-            <li>不用于欺诈、钓鱼或其他非法用途</li>
-            <li>遵守相关法律法规和网站服务条款</li>
-            <li>任何非法使用产生的法律责任由使用者自行承担</li>
-          </ul>
+          <pre>{{ $t('terms.content') }}</pre>
         </div>
       </el-scrollbar>
     </div>
@@ -110,12 +57,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { SetTermsAccepted, QuitApp } from '../api'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+// 语言切换
+const currentLocale = computed({
+  get: () => locale.value,
+  set: (val) => {
+    locale.value = val
+    localStorage.setItem('locale', val)
+  }
+})
+
+// 处理语言切换
+const handleLocaleChange = (val: string) => {
+  currentLocale.value = val
+}
 
 const props = defineProps<{
   requireAccept?: boolean  // 是否要求必须接受（首次启动时为true，查看时为false）
@@ -210,44 +171,28 @@ const handleReject = async () => {
   background: var(--card-bg);
 }
 
+.language-selector {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
 .terms-text {
   color: var(--text);
   line-height: 1.8;
-}
-
-.terms-text h2 {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  color: var(--primary);
-}
-
-.terms-text h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-top: 24px;
-  margin-bottom: 12px;
-  color: var(--text);
-}
-
-.terms-text p {
-  margin-bottom: 16px;
   font-size: 14px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
-.terms-text ul {
-  margin-left: 24px;
-  margin-bottom: 16px;
-}
-
-.terms-text li {
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.terms-text strong {
-  color: var(--primary);
-  font-weight: 600;
+.terms-text pre {
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .dialog-footer {
