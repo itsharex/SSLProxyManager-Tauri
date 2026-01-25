@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="使用条款与免责声明"
+    :title="$t('terms.title')"
     width="80%"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
@@ -84,7 +84,7 @@
     <template #footer>
       <div class="dialog-footer">
         <el-checkbox v-if="requireAccept !== false" v-model="agreed" size="large">
-          我已阅读并同意上述使用条款与免责声明
+          {{ $t('terms.readAndAgree') }}
         </el-checkbox>
         <div class="footer-buttons">
           <el-button 
@@ -93,7 +93,7 @@
             type="danger" 
             size="large"
           >
-            不同意并退出
+            {{ $t('terms.disagreeAndQuit') }}
           </el-button>
           <el-button 
             @click="handleAccept" 
@@ -101,7 +101,7 @@
             size="large"
             :disabled="requireAccept !== false && !agreed"
           >
-            {{ requireAccept !== false ? '同意并继续' : '关闭' }}
+            {{ requireAccept !== false ? $t('terms.agreeAndContinue') : $t('terms.close') }}
           </el-button>
         </div>
       </div>
@@ -113,6 +113,9 @@
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { SetTermsAccepted, QuitApp } from '../api'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   requireAccept?: boolean  // 是否要求必须接受（首次启动时为true，查看时为false）
@@ -128,7 +131,7 @@ const agreed = ref(false)
 const handleBeforeClose = (done: () => void) => {
   // 如果要求必须接受（首次启动），则不允许通过点击遮罩或 ESC 关闭
   if (props.requireAccept !== false && !agreed.value) {
-    ElMessage.warning('请先阅读并同意使用条款')
+    ElMessage.warning(t('terms.pleaseReadAndAgree'))
     return
   }
   // 如果只是查看（不要求接受），允许直接关闭
@@ -139,7 +142,7 @@ const handleAccept = async () => {
   // 如果要求必须接受，需要勾选同意
   if (props.requireAccept !== false) {
     if (!agreed.value) {
-      ElMessage.warning('请先勾选同意选项')
+      ElMessage.warning(t('terms.pleaseCheckAgree'))
       return
     }
 
@@ -151,7 +154,7 @@ const handleAccept = async () => {
       visible.value = false
       emit('close')
     } catch (error: any) {
-      ElMessage.error(`保存条款接受状态失败: ${error?.message || error}`)
+      ElMessage.error(t('terms.saveFailed', { error: error?.message || error }))
     }
   } else {
     // 如果只是查看，直接关闭
@@ -165,11 +168,11 @@ const handleReject = async () => {
   if (props.requireAccept !== false) {
     try {
       await ElMessageBox.confirm(
-        '您必须同意使用条款才能使用本软件。\n\n确定要退出吗？',
-        '确认退出',
+        t('terms.mustAgreeToUse'),
+        t('terms.confirmQuit'),
         {
-          confirmButtonText: '退出',
-          cancelButtonText: '返回',
+          confirmButtonText: t('terms.quit'),
+          cancelButtonText: t('terms.return'),
           type: 'warning',
         }
       )

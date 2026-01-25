@@ -2,20 +2,20 @@
 <template>
   <el-card ref="configCardRef" class="config-page" shadow="never">
     <template #header>
-      <h3>请求记录查询</h3>
+      <h3>{{ $t('requestLogs.title') }}</h3>
     </template>
 
     <!-- 查询条件 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="searchForm" label-width="120px" :inline="true">
-        <el-form-item label="时间范围">
+        <el-form-item :label="$t('requestLogs.timeRange')">
           <el-config-provider :locale="zhCn">
             <el-date-picker
               v-model="dateRange"
               type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
+              :range-separator="$t('requestLogs.to')"
+              :start-placeholder="$t('requestLogs.startTime')"
+              :end-placeholder="$t('requestLogs.endTime')"
               format="YYYY-MM-DD HH:mm:ss"
               value-format="x"
               :shortcuts="dateShortcuts"
@@ -24,32 +24,32 @@
           </el-config-provider>
         </el-form-item>
 
-        <el-form-item label="监听地址">
-          <el-select v-model="searchForm.listenAddr" placeholder="全部" style="width: 200px;" clearable filterable>
-            <el-option label="全部" value="" />
+        <el-form-item :label="$t('requestLogs.listenAddr')">
+          <el-select v-model="searchForm.listenAddr" :placeholder="$t('requestLogs.all')" style="width: 200px;" clearable filterable>
+            <el-option :label="$t('requestLogs.all')" value="" />
             <el-option v-for="a in listenAddrs" :key="a" :label="a" :value="a" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="上游地址">
-          <el-input v-model="searchForm.upstream" placeholder="模糊匹配" style="width: 200px;" clearable />
+        <el-form-item :label="$t('requestLogs.upstream')">
+          <el-input v-model="searchForm.upstream" :placeholder="$t('requestLogs.fuzzyMatch')" style="width: 200px;" clearable />
         </el-form-item>
 
-        <el-form-item label="请求路径">
-          <el-input v-model="searchForm.requestPath" placeholder="模糊匹配" style="width: 200px;" clearable />
+        <el-form-item :label="$t('requestLogs.requestPath')">
+          <el-input v-model="searchForm.requestPath" :placeholder="$t('requestLogs.fuzzyMatch')" style="width: 200px;" clearable />
         </el-form-item>
 
-        <el-form-item label="客户端IP">
-          <el-input v-model="searchForm.clientIP" placeholder="模糊匹配" style="width: 200px;" clearable />
+        <el-form-item :label="$t('requestLogs.clientIP')">
+          <el-input v-model="searchForm.clientIP" :placeholder="$t('requestLogs.fuzzyMatch')" style="width: 200px;" clearable />
         </el-form-item>
 
-        <el-form-item label="状态码">
-          <el-input-number v-model="searchForm.statusCode" :min="0" :max="999" placeholder="0表示全部" style="width: 150px;" />
+        <el-form-item :label="$t('requestLogs.statusCode')">
+          <el-input-number v-model="searchForm.statusCode" :min="0" :max="999" :placeholder="$t('requestLogs.allStatusCodes')" style="width: 150px;" />
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSearch" :loading="loading">{{ $t('requestLogs.search') }}</el-button>
+          <el-button @click="handleReset">{{ $t('requestLogs.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -63,36 +63,36 @@
       style="width: 100%; margin-top: 20px;"
       @sort-change="handleSortChange"
     >
-      <el-table-column prop="timestamp" label="时间" width="180" sortable="custom">
+      <el-table-column prop="timestamp" :label="$t('requestLogs.time')" width="180" sortable="custom">
         <template #default="{ row }">
           {{ formatTime(row.timestamp) }}
         </template>
       </el-table-column>
-      <el-table-column prop="listenAddr" label="监听地址" width="120" sortable="custom" />
-      <el-table-column prop="clientIP" label="客户端IP" width="130" sortable="custom" />
-      <el-table-column prop="remoteIP" label="RemoteIP" width="130" sortable="custom" />
-      <el-table-column prop="method" label="方法" width="80" sortable="custom" />
-      <el-table-column prop="requestPath" label="请求路径" min-width="200" show-overflow-tooltip sortable="custom" />
-      <el-table-column prop="requestHost" label="Host" width="150" show-overflow-tooltip sortable="custom" />
-      <el-table-column prop="statusCode" label="状态码" width="100" sortable="custom">
+      <el-table-column prop="listenAddr" :label="$t('requestLogs.listenAddr')" width="120" sortable="custom" />
+      <el-table-column prop="clientIP" :label="$t('requestLogs.clientIP')" width="130" sortable="custom" />
+      <el-table-column prop="remoteIP" :label="$t('requestLogs.remoteIP')" width="130" sortable="custom" />
+      <el-table-column prop="method" :label="$t('requestLogs.method')" width="80" sortable="custom" />
+      <el-table-column prop="requestPath" :label="$t('requestLogs.requestPath')" min-width="200" show-overflow-tooltip sortable="custom" />
+      <el-table-column prop="requestHost" :label="$t('requestLogs.host')" width="150" show-overflow-tooltip sortable="custom" />
+      <el-table-column prop="statusCode" :label="$t('requestLogs.statusCode')" width="100" sortable="custom">
         <template #default="{ row }">
           <el-tag :type="getStatusTagType(row.statusCode)" size="small">
             {{ row.statusCode }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="upstream" label="上游地址" width="200" show-overflow-tooltip sortable="custom">
+      <el-table-column prop="upstream" :label="$t('requestLogs.upstream')" width="200" show-overflow-tooltip sortable="custom">
         <template #default="{ row }">
           {{ formatUpstreamHost(row.upstream) }}
         </template>
       </el-table-column>
-      <el-table-column prop="latencyMs" label="延迟(ms)" width="100" sortable="custom">
+      <el-table-column prop="latencyMs" :label="$t('requestLogs.latency')" width="100" sortable="custom">
         <template #default="{ row }">
           {{ row.latencyMs.toFixed(2) }}
         </template>
       </el-table-column>
-      <el-table-column prop="userAgent" label="User-Agent" min-width="200" show-overflow-tooltip />
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column prop="userAgent" :label="$t('requestLogs.userAgent')" min-width="200" show-overflow-tooltip />
+      <el-table-column :label="$t('requestLogs.actions')" width="120" fixed="right">
         <template #default="{ row }">
           <el-button 
             type="danger" 
@@ -100,7 +100,7 @@
             @click="handleBlacklistIP(row.clientIP)"
             :icon="Lock"
           >
-            拉黑
+            {{ $t('requestLogs.blacklist') }}
           </el-button>
         </template>
       </el-table-column>
@@ -130,6 +130,11 @@ import { Lock } from '@element-plus/icons-vue'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 // @ts-ignore
 import { GetListenAddrs, QueryRequestLogs, AddBlacklistEntry } from '../api'
+import { useI18n } from 'vue-i18n'
+import { useDateShortcuts } from '../composables/useDateShortcuts'
+
+const { t } = useI18n()
+const { dateShortcuts } = useDateShortcuts()
 
 interface RequestLog {
   id: number
@@ -151,103 +156,6 @@ interface RequestLog {
 
 const dateRange = ref<[number, number] | null>(null)
 const listenAddrs = ref<string[]>([])
-
-// 日期快捷选项
-const dateShortcuts = [
-  {
-    text: '今天',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '昨天',
-    value: () => {
-      const now = new Date()
-      const yesterday = new Date(now)
-      yesterday.setDate(yesterday.getDate() - 1)
-      const start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0)
-      const end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '最近7天',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now)
-      start.setDate(start.getDate() - 6)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(now)
-      end.setHours(23, 59, 59, 999)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '最近30天',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now)
-      start.setDate(start.getDate() - 29)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(now)
-      end.setHours(23, 59, 59, 999)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '本月',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '上一月',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0)
-      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '最近半年',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now)
-      start.setMonth(start.getMonth() - 6)
-      start.setDate(1)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(now)
-      end.setHours(23, 59, 59, 999)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '去年',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0)
-      const end = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '今年',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0)
-      const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  }
-]
 
 const searchForm = ref({
   listenAddr: '',

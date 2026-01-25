@@ -1,37 +1,37 @@
 <template>
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
-      <h3>访问控制</h3>
+      <h3>{{ $t('accessControl.title') }}</h3>
     </template>
 
     <el-form label-width="180px">
-      <el-form-item label="访问控制开关">
+      <el-form-item :label="$t('accessControl.accessControlSwitch')">
       <div class="ac-switches">
         <div class="ac-switch">
-          <el-switch v-model="localConfig.http_access_control_enabled" active-text="HTTP/HTTPS"/>
+          <el-switch v-model="localConfig.http_access_control_enabled" :active-text="$t('accessControl.httpHttps')"/>
         </div>
         <div class="ac-switch">
-          <el-switch v-model="localConfig.ws_access_control_enabled" active-text="WebSocket"/>
+          <el-switch v-model="localConfig.ws_access_control_enabled" :active-text="$t('accessControl.websocket')"/>
         </div>
         <div class="ac-switch">
-          <el-switch v-model="localConfig.stream_access_control_enabled" active-text="Stream"/>
+          <el-switch v-model="localConfig.stream_access_control_enabled" :active-text="$t('accessControl.stream')"/>
         </div>
       </div>
       <el-text type="info" size="small" class="mini-hint">
-        用于控制三类反向代理是否启用访问控制（白名单/黑名单）。关闭后将直接放行对应类型的请求。
+        {{ $t('accessControl.switchHint') }}
       </el-text>
     </el-form-item>
 
     <el-form-item>
         <el-checkbox v-model="localConfig.allow_all_lan">
-          允许所有局域网 IP 访问
+          {{ $t('accessControl.allowAllLAN') }}
         </el-checkbox>
         <el-text type="info" size="small" class="mini-hint">
-          勾选后，所有局域网地址（如 192.168.x.x, 10.x.x.x）都将被允许访问，白名单依然有效。
+          {{ $t('accessControl.allowAllLANHint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item label="IP 白名单">
+      <el-form-item :label="$t('accessControl.ipWhitelist')">
         <TransitionGroup name="list" tag="div" class="whitelist-list">
           <div v-for="(item, index) in localConfig.whitelist" :key="item.id || index" class="whitelist-item">
             <el-input
@@ -39,34 +39,34 @@
               placeholder="例如: 192.168.1.100"
               class="whitelist-input"
             />
-            <el-button @click="removeWhitelistItem(index)" type="danger" size="small">删除</el-button>
+            <el-button @click="removeWhitelistItem(index)" type="danger" size="small">{{ $t('accessControl.delete') }}</el-button>
           </div>
         </TransitionGroup>
         <el-button @click="addWhitelistItem" type="primary" style="margin-top: 10px;">
-          <el-icon><Plus /></el-icon> 添加 IP 地址
+          <el-icon><Plus /></el-icon> {{ $t('accessControl.addIP') }}
         </el-button>
       </el-form-item>
 
       <el-divider style="margin: 16px 0;" />
 
       <div class="blacklist-header">
-        <h4>IP 黑名单</h4>
+        <h4>{{ $t('accessControl.ipBlacklist') }}</h4>
         <div class="blacklist-actions">
           <el-button type="primary" @click="showAddDialog = true" :icon="Plus">
-            添加黑名单
+            {{ $t('accessControl.addBlacklist') }}
           </el-button>
           <el-button @click="refreshBlacklist" :loading="blacklistLoading" :icon="Refresh">
-            刷新列表
+            {{ $t('accessControl.refreshList') }}
           </el-button>
           <el-button @click="refreshCache" :loading="refreshingCache" :icon="RefreshRight">
-            刷新缓存
+            {{ $t('accessControl.refreshCache') }}
           </el-button>
         </div>
       </div>
 
       <el-alert
         v-if="dbStatus && !dbStatus.enabled"
-        title="数据库未启用"
+        :title="$t('accessControl.dbNotEnabled')"
         type="warning"
         :closable="false"
         show-icon
@@ -74,8 +74,8 @@
       >
         <template #default>
           <div>
-            <p>黑名单功能需要启用数据持久化才能使用。</p>
-            <p>请前往 <strong>\"数据持久化\"</strong> 标签页启用数据库功能。</p>
+            <p>{{ $t('accessControl.dbNotEnabledHint') }}</p>
+            <p>{{ $t('accessControl.goToStorage') }}</p>
           </div>
         </template>
       </el-alert>
@@ -87,11 +87,11 @@
         border
         style="width: 100%; margin-top: 12px;"
       >
-        <el-table-column prop="ip" label="IP地址" width="180" sortable />
-        <el-table-column prop="reason" label="拉黑原因" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="expires_at" label="过期时间" width="180" sortable>
+        <el-table-column prop="ip" :label="$t('accessControl.ipAddress')" width="180" sortable />
+        <el-table-column prop="reason" :label="$t('accessControl.blacklistReason')" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="expires_at" :label="$t('accessControl.expiresAt')" width="180" sortable>
           <template #default="{ row }">
-            <span v-if="row.expires_at === 0">永久</span>
+            <span v-if="row.expires_at === 0">{{ $t('accessControl.permanent') }}</span>
             <span v-else>
               {{ formatTime(row.expires_at) }}
               <el-tag
@@ -100,7 +100,7 @@
                 size="small"
                 style="margin-left: 8px;"
               >
-                已过期
+                {{ $t('accessControl.expired') }}
               </el-tag>
               <el-tag
                 v-else
@@ -108,17 +108,17 @@
                 size="small"
                 style="margin-left: 8px;"
               >
-                有效
+                {{ $t('accessControl.valid') }}
               </el-tag>
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" sortable>
+        <el-table-column prop="created_at" :label="$t('accessControl.createdAt')" width="180" sortable>
           <template #default="{ row }">
             {{ formatTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column :label="$t('accessControl.actions')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
               type="danger"
@@ -126,7 +126,7 @@
               @click="handleRemove(row.ip)"
               :icon="Delete"
             >
-              删除
+              {{ $t('accessControl.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -134,42 +134,42 @@
 
       <el-dialog
         v-model="showAddDialog"
-        title="添加黑名单"
+        :title="$t('accessControl.addBlacklistTitle')"
         width="520px"
         :close-on-click-modal="false"
       >
         <el-form :model="addForm" label-width="120px" :rules="addRules" ref="addFormRef">
-          <el-form-item label="IP地址" prop="ip">
+          <el-form-item :label="$t('accessControl.ipAddress')" prop="ip">
             <el-input
               v-model="addForm.ip"
-              placeholder="请输入IP地址，例如：192.168.1.1"
+              :placeholder="$t('accessControl.ipPlaceholder')"
               clearable
             />
             <el-text type="info" size="small" class="hint">
-              支持IPv4和IPv6地址
+              {{ $t('accessControl.ipHint') }}
             </el-text>
           </el-form-item>
 
-          <el-form-item label="拉黑原因" prop="reason">
+          <el-form-item :label="$t('accessControl.reason')" prop="reason">
             <el-input
               v-model="addForm.reason"
               type="textarea"
               :rows="3"
-              placeholder="请输入拉黑原因（可选）"
+              :placeholder="$t('accessControl.reasonPlaceholder')"
               clearable
             />
           </el-form-item>
 
-          <el-form-item label="拉黑时长">
+          <el-form-item :label="$t('accessControl.expiresAtLabel')">
             <el-radio-group v-model="addForm.durationType">
-              <el-radio label="permanent">永久</el-radio>
-              <el-radio label="temporary">临时</el-radio>
+              <el-radio label="permanent">{{ $t('accessControl.permanentLabel') }}</el-radio>
+              <el-radio label="temporary">{{ $t('requestLogs.timeRange') }}</el-radio>
             </el-radio-group>
           </el-form-item>
 
           <el-form-item
             v-if="addForm.durationType === 'temporary'"
-            label="过期时间"
+            :label="$t('accessControl.expiresAtLabel')"
             prop="expiresAt"
           >
             <el-config-provider :locale="zhCn">
@@ -206,6 +206,9 @@ import { ElMessage, ElMessageBox, ElConfigProvider } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 // @ts-ignore
 import { AddBlacklistEntry, RemoveBlacklistEntry, GetBlacklistEntries, RefreshBlacklistCache, GetMetricsDBStatus } from '../api'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface BlacklistEntry {
   id: number

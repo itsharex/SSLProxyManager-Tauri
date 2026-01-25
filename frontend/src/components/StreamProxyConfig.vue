@@ -2,9 +2,9 @@
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
       <div class="header-row">
-        <h3>Stream 代理配置</h3>
+        <h3>{{ $t('streamProxy.title') }}</h3>
         <div class="header-actions">
-          <el-switch v-model="enabled" active-text="启用" inactive-text="禁用" />
+          <el-switch v-model="enabled" :active-text="$t('streamProxy.enable')" :inactive-text="$t('streamProxy.disable')" />
         </div>
       </div>
     </template>
@@ -12,47 +12,47 @@
     <el-alert
       type="info"
       :closable="false"
-      title="说明"
-      description="Stream 为四层(TCP/UDP)转发：监听端口 -> upstream。hash_key 目前仅支持 $remote_addr（客户端 IP）。consistent=true 时启用一致性哈希环（更接近 nginx: hash $remote_addr consistent）。"
+      :title="$t('common.confirm')"
+      :description="$t('streamProxy.description')"
       style="margin-bottom: 12px;"
     />
 
     <el-card shadow="never" class="section-card">
       <template #header>
         <div class="section-header">
-          <span>Upstreams</span>
+          <span>{{ $t('streamProxy.upstreams') }}</span>
           <el-button type="primary" size="small" @click="addUpstream">
             <el-icon><Plus /></el-icon>
-            添加 Upstream
+            {{ $t('streamProxy.addUpstream') }}
           </el-button>
         </div>
       </template>
 
       <div v-if="upstreams.length === 0" class="empty-hint">
-        暂无 upstream，请先添加。
+        {{ $t('streamProxy.noUpstreams') }}
       </div>
 
       <TransitionGroup name="list" tag="div">
       <el-card v-for="(up, upIndex) in upstreams" :key="up.id || upIndex" shadow="never" class="sub-card">
         <template #header>
           <div class="sub-header">
-            <span>Upstream {{ upIndex + 1 }}</span>
+            <span>{{ $t('streamProxy.upstream') }} {{ upIndex + 1 }}</span>
             <el-button type="danger" size="small" @click="removeUpstream(upIndex)">
-              删除
+              {{ $t('streamProxy.delete') }}
             </el-button>
           </div>
         </template>
 
         <el-form :model="up" label-width="140px">
-          <el-form-item label="name" required>
+          <el-form-item :label="$t('streamProxy.name')" required>
             <el-input v-model="up.name" placeholder="sendimage" style="max-width: 360px;" />
           </el-form-item>
 
-          <el-form-item label="hash_key">
+          <el-form-item :label="$t('streamProxy.hashKey')">
             <el-input v-model="up.hash_key" placeholder="$remote_addr" style="max-width: 360px;" />
           </el-form-item>
 
-          <el-form-item label="consistent">
+          <el-form-item :label="$t('streamProxy.consistent')">
             <el-switch v-model="up.consistent" />
           </el-form-item>
         </el-form>
@@ -60,10 +60,10 @@
         <el-card shadow="never" class="inner-card">
           <template #header>
             <div class="section-header">
-              <span>Servers</span>
+              <span>{{ $t('streamProxy.servers') }}</span>
               <el-button type="primary" size="small" @click="addUpstreamServer(upIndex)">
                 <el-icon><Plus /></el-icon>
-                添加 Server
+                {{ $t('streamProxy.addServer') }}
               </el-button>
             </div>
           </template>
@@ -85,7 +85,7 @@
                 </el-col>
                 <el-col :span="2">
                   <el-button type="danger" size="small" :disabled="up.servers.length <= 1" @click="removeUpstreamServer(upIndex, svIndex)">
-                    删除
+                    {{ $t('streamProxy.delete') }}
                   </el-button>
                 </el-col>
               </el-row>
@@ -93,7 +93,7 @@
           </TransitionGroup>
 
           <el-text type="info" size="small" class="mini-hint">
-            字段说明：addr=host:port；weight 当前不参与 hash；max_fails/fail_timeout 已用于 TCP 连接失败熔断。
+            {{ $t('streamProxy.serverHint') }}
           </el-text>
         </el-card>
               </el-card>
@@ -103,51 +103,51 @@
     <el-card shadow="never" class="section-card">
       <template #header>
         <div class="section-header">
-          <span>Servers（监听端口）</span>
+          <span>{{ $t('streamProxy.listenServers') }}</span>
           <el-button type="primary" size="small" @click="addServer">
             <el-icon><Plus /></el-icon>
-            添加监听
+            {{ $t('streamProxy.addListen') }}
           </el-button>
         </div>
       </template>
 
       <div v-if="servers.length === 0" class="empty-hint">
-        暂无 server，请先添加。
+        {{ $t('streamProxy.noServers') }}
       </div>
 
       <TransitionGroup name="list" tag="div">
         <el-card v-for="(sv, sIndex) in servers" :key="sv.id || sIndex" shadow="never" class="sub-card">
         <template #header>
           <div class="sub-header">
-            <span>Server {{ sIndex + 1 }}</span>
+            <span>{{ $t('streamProxy.server') }} {{ sIndex + 1 }}</span>
             <el-button type="danger" size="small" @click="removeServer(sIndex)">
-              删除
+              {{ $t('streamProxy.delete') }}
             </el-button>
           </div>
         </template>
 
         <el-form :model="sv" label-width="200px">
-          <el-form-item label="启用">
+          <el-form-item :label="$t('wsProxy.enabled')">
             <el-switch v-model="sv.enabled" />
           </el-form-item>
 
-          <el-form-item label="listen_port" required>
+          <el-form-item :label="$t('streamProxy.listenPort')" required>
             <el-input-number v-model="sv.listen_port" :min="1" :max="65535" />
           </el-form-item>
 
-          <el-form-item label="udp">
-            <el-switch v-model="sv.udp" active-text="UDP" inactive-text="TCP" />
+          <el-form-item :label="$t('streamProxy.udp')">
+            <el-switch v-model="sv.udp" active-text="UDP" :inactive-text="$t('streamProxy.tcp')" />
           </el-form-item>
 
-          <el-form-item label="proxy_pass（upstream）" required>
+          <el-form-item :label="$t('streamProxy.proxyPass')" required>
             <el-input v-model="sv.proxy_pass" placeholder="sendimage" style="max-width: 200px;" />
           </el-form-item>
 
-          <el-form-item label="proxy_connect_timeout">
+          <el-form-item :label="$t('streamProxy.proxyConnectTimeout')">
             <el-input v-model="sv.proxy_connect_timeout" placeholder="300s" style="max-width: 200px;" />
           </el-form-item>
 
-          <el-form-item label="proxy_timeout">
+          <el-form-item :label="$t('streamProxy.proxyTimeout')">
             <el-input v-model="sv.proxy_timeout" placeholder="600s" style="max-width: 200px;" />
           </el-form-item>
         </el-form>
@@ -161,6 +161,9 @@
 import { ref, onMounted } from 'vue'
 import { GetConfig } from '../api'
 import { Plus } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface StreamUpstreamServer {
   id?: string

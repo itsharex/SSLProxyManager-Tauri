@@ -2,9 +2,9 @@
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
       <div class="header-row">
-        <h3>WebSocket 反向代理配置</h3>
+        <h3>{{ $t('wsProxy.title') }}</h3>
         <div class="header-actions">
-          <el-switch v-model="wsProxyEnabled" active-text="启用" inactive-text="禁用" />
+          <el-switch v-model="wsProxyEnabled" :active-text="$t('wsProxy.enable')" :inactive-text="$t('wsProxy.disable')" />
         </div>
       </div>
     </template>
@@ -19,44 +19,44 @@
         >
           <template #header>
             <div class="rule-header">
-              <h4>WS 监听规则 {{ ruleIndex + 1 }}</h4>
+              <h4>{{ $t('wsProxy.wsListenRule') }} {{ ruleIndex + 1 }}</h4>
               <el-button
                 @click="removeRule(ruleIndex)"
                 type="danger"
                 size="small"
                 :disabled="rules.length <= 1"
               >
-                删除规则
+                {{ $t('wsProxy.deleteRule') }}
               </el-button>
             </div>
           </template>
 
-          <el-form-item label="启用">
+          <el-form-item :label="$t('wsProxy.enabled')">
             <el-switch v-model="rule.enabled" />
           </el-form-item>
 
-          <el-form-item label="监听地址">
+          <el-form-item :label="$t('wsProxy.listenAddr')">
             <el-input v-model="rule.listen_addr" placeholder="0.0.0.0:9001" style="width: 260px;" />
           </el-form-item>
 
-          <el-form-item label="启用 TLS（wss）">
+          <el-form-item :label="$t('wsProxy.enableTLS')">
             <el-switch v-model="rule.ssl_enable" />
           </el-form-item>
 
           <template v-if="rule.ssl_enable">
-            <el-form-item label="证书文件 (cert)">
+            <el-form-item :label="$t('wsProxy.certFile')">
               <div class="file-selector">
                 <el-input v-model="rule.cert_file" placeholder="ssl/server.crt" readonly />
                 <el-button @click="selectCertFile(ruleIndex)" type="primary" :icon="Folder">
-                  选择文件
+                  {{ $t('wsProxy.selectFile') }}
                 </el-button>
               </div>
             </el-form-item>
-            <el-form-item label="私钥文件 (key)">
+            <el-form-item :label="$t('wsProxy.keyFile')">
               <div class="file-selector">
                 <el-input v-model="rule.key_file" placeholder="ssl/server.key" readonly />
                 <el-button @click="selectKeyFile(ruleIndex)" type="primary" :icon="Folder">
-                  选择文件
+                  {{ $t('wsProxy.selectFile') }}
                 </el-button>
               </div>
             </el-form-item>
@@ -65,7 +65,7 @@
           <el-card class="routes-card" shadow="never">
             <template #header>
               <div class="route-header">
-                <span>WS 路由</span>
+                <span>{{ $t('wsProxy.wsRoutes') }}</span>
               </div>
             </template>
 
@@ -76,36 +76,36 @@
                 class="route-item"
               >
                 <div class="route-item-header">
-                  <span>路由 {{ routeIndex + 1 }}</span>
+                  <span>{{ $t('wsProxy.route') }} {{ routeIndex + 1 }}</span>
                   <el-button
                     @click="removeRoute(ruleIndex, routeIndex)"
                     type="danger"
                     size="small"
                     :disabled="rule.routes.length <= 1"
                   >
-                    删除路由
+                    {{ $t('wsProxy.deleteRoute') }}
                   </el-button>
                 </div>
 
-                <el-form-item label="Path 前缀">
+                <el-form-item :label="$t('wsProxy.pathPrefix')">
                   <el-input v-model="rt.path" placeholder="/ws" />
                 </el-form-item>
 
-                <el-form-item label="上游地址">
+                <el-form-item :label="$t('wsProxy.upstreamUrl')">
                   <el-input v-model="rt.upstream_url" placeholder="ws://127.0.0.1:9000 或 wss://example.com/ws" />
                 </el-form-item>
               </div>
             </TransitionGroup>
 
             <el-button @click="addRoute(ruleIndex)" type="primary" style="margin-top: 10px;">
-              <el-icon><Plus /></el-icon> 添加路由
+              <el-icon><Plus /></el-icon> {{ $t('wsProxy.addRoute') }}
             </el-button>
           </el-card>
         </el-card>
       </TransitionGroup>
 
         <el-button @click="addRule" type="primary" style="margin-top: 10px;">
-          <el-icon><Plus /></el-icon> 添加 WS 监听规则
+          <el-icon><Plus /></el-icon> {{ $t('wsProxy.addListenRule') }}
         </el-button>
     </el-form>
   </el-card>
@@ -116,6 +116,9 @@ import { ref, onMounted } from 'vue'
 import { GetConfig, OpenCertFileDialog, OpenKeyFileDialog } from '../api'
 import { Plus, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface WsRoute {
   id?: string

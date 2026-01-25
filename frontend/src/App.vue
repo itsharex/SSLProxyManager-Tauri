@@ -4,14 +4,14 @@
     <!-- 顶部标题栏 -->
     <el-card class="top-bar" shadow="hover">
       <div class="top-bar-content">
-        <h1>数据反向代理管理面板</h1>
+        <h1>{{ $t('app.title') }}</h1>
         <div class="top-bar-right">
           <div class="theme-control">
             <el-switch
               v-model="autoThemeEnabled"
               @change="handleAutoThemeChange"
-              active-text="自动切换"
-              inactive-text="手动"
+              :active-text="$t('app.autoTheme')"
+              :inactive-text="$t('app.manualTheme')"
               size="small"
               class="auto-theme-switch"
             />
@@ -19,18 +19,18 @@
               @click="toggleTheme" 
               circle
               class="theme-btn"
-              :title="autoThemeEnabled ? '当前为自动模式，点击切换为手动模式' : (isDark ? '切换到日间模式（手动模式）' : '切换到夜间模式（手动模式）')"
+              :title="autoThemeEnabled ? $t('app.autoTheme') : (isDark ? $t('app.manualTheme') : $t('app.manualTheme'))"
             >
               <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
             </el-button>
           </div>
           <div class="status-control">
-            <span class="status-label">状态：</span>
+            <span class="status-label">{{ $t('app.status') }}</span>
             <el-tag :type="status === 'running' ? 'success' : 'info'" effect="dark" class="status-badge">
-              {{ status === 'running' ? '运行中' : '已停止' }}
+              {{ status === 'running' ? $t('app.running') : $t('app.stopped') }}
             </el-tag>
             <span v-if="status === 'running' && runTime" class="runtime-text">
-              (运行时间: {{ runTime }})
+              ({{ $t('app.runtime', { time: runTime }) }})
             </span>
             <el-button 
               @click="status==='running'?stop():start()" 
@@ -38,10 +38,10 @@
               :type="status === 'running' ? 'danger' : 'primary'"
               class="control-btn"
             >
-              {{ status === 'running' ? '停止服务' : '启动服务' }}
+              {{ status === 'running' ? $t('app.stopService') : $t('app.startService') }}
             </el-button>
             <el-tooltip 
-              content="请先停止服务再保存配置" 
+              :content="$t('app.saveConfigHint')" 
               placement="bottom" 
               :disabled="status==='stopped'">
               <span>
@@ -52,7 +52,7 @@
                   type="primary"
                   class="save-btn"
                 >
-                  <el-icon><Check /></el-icon> {{ saving ? '保存中...' : '保存配置' }}
+                  <el-icon><Check /></el-icon> {{ saving ? $t('app.saving') : $t('app.saveConfig') }}
                 </el-button>
               </span>
             </el-tooltip>
@@ -122,6 +122,9 @@ import { Sunny, Moon, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { GetConfig, SaveConfig } from './api'
 import { GetTermsAccepted } from './api'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const activeTab = ref<'base' | 'config' | 'ws' | 'stream' | 'logs' | 'dashboard' | 'access' | 'storage' | 'requestLogs' | 'about'>('config')
 const status = ref('stopped')
@@ -304,22 +307,23 @@ const toggleTheme = () => {
 }
 
 // 处理自动切换开关变化
-const handleAutoThemeChange = (enabled: boolean) => {
-  localStorage.setItem('autoThemeEnabled', String(enabled))
+const handleAutoThemeChange = (enabled: boolean | string | number) => {
+  const isEnabled = enabled === true || enabled === 'true' || enabled === 1
+  localStorage.setItem('autoThemeEnabled', String(isEnabled))
   
-  if (enabled) {
+  if (isEnabled) {
     // 开启自动切换：根据时间设置主题
     isDark.value = shouldUseDarkMode()
     localStorage.setItem('theme', 'auto')
     applyTheme()
     startAutoTheme()
-    ElMessage.success('已开启自动切换主题')
+    ElMessage.success(t('app.autoThemeEnabled'))
   } else {
     // 关闭自动切换：停止定时器，保持当前主题
     stopAutoTheme()
     // 保存当前主题为手动模式
     localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
-    ElMessage.info('已关闭自动切换主题，当前为手动模式')
+    ElMessage.info(t('app.autoThemeDisabled'))
   }
 }
 
@@ -331,10 +335,10 @@ const start = async () => {
   try {
     await StartServer()
 
-    // 后端 start_server 目前是“异步启动”：即使端口占用，StartServer 也可能先返回 Ok。
-    // 因此这里不能立即提示“启动成功”，而是进入等待状态。
+    // 后端 start_server 目前是"异步启动"：即使端口占用，StartServer 也可能先返回 Ok。
+    // 因此这里不能立即提示"启动成功"，而是进入等待状态。
     status.value = 'stopped'
-    ElMessage.info('已发送启动请求，等待服务进入运行状态...')
+    ElMessage.info(t('app.startRequestSent'))
 
     // 轮询等待一小段时间，直到真正 running 才提示成功；
     // 如果后端启动失败，会通过 server-start-error 事件提示，并保持 stopped。
@@ -347,7 +351,7 @@ const start = async () => {
           startTime.value = Date.now()
           currentTime.value = Date.now()
           startRuntimeTimer()
-          ElMessage.success('服务已启动')
+          ElMessage.success(t('app.serviceStarted'))
           return
         }
       } catch {
@@ -358,7 +362,7 @@ const start = async () => {
 
     // 超时不代表失败，只是不确定；保持等待，后续靠 status/server-start-error 事件更新
   } catch (e: any) {
-    ElMessage.error(`启动失败: ${e?.message || String(e)}`)
+    ElMessage.error(t('app.startFailed', { error: e?.message || String(e) }))
   } finally {
     starting.value = false
   }
@@ -371,9 +375,9 @@ const stop = async () => {
     // 重置启动时间
     startTime.value = null
     stopRuntimeTimer()
-    ElMessage.success('服务已停止')
+    ElMessage.success(t('app.serviceStopped'))
   } catch (e: any) {
-    ElMessage.error(`停止失败: ${e?.message || String(e)}`)
+    ElMessage.error(t('app.stopFailed', { error: e?.message || String(e) }))
   }
 }
 
@@ -417,7 +421,7 @@ const handleSaveConfig = async () => {
         }
       }
     } catch (e: any) {
-      ElMessage.error(`配置验证失败: ${e?.message || String(e)}`)
+      ElMessage.error(t('app.configValidationFailed', { error: e?.message || String(e) }))
       saving.value = false
       return
     }
@@ -489,7 +493,7 @@ const handleSaveConfig = async () => {
         await disableAutostart()
       }
     } catch (e: any) {
-      ElMessage.warning(`开机自启设置失败: ${e?.message || String(e)}`)
+      ElMessage.warning(t('app.autostartFailed', { error: e?.message || String(e) }))
     }
 
     // 保存成功后，用后端返回的最终配置（包含补齐后的 id）刷新本地缓存，
@@ -502,7 +506,7 @@ const handleSaveConfig = async () => {
       // ignore
     }
 
-    ElMessage.success('配置已保存，正在重启服务以应用新配置...')
+    ElMessage.success(t('app.configSaved'))
 
     // 后端已负责重启，等待状态事件更新即可
     // 如需立即刷新配置，可稍后主动重新读取配置
@@ -514,7 +518,7 @@ const handleSaveConfig = async () => {
     }, 1000)
 
   } catch (e: any) {
-    ElMessage.error(`保存失败: ${e?.message || String(e)}`)
+    ElMessage.error(t('app.saveFailed', { error: e?.message || String(e) }))
   } finally {
     saving.value = false
   }
@@ -570,11 +574,11 @@ const setupQuitHandler = async () => {
   // 托盘请求退出：由前端弹确认框，避免后端/GTK 死锁
   await EventsOn('request-quit', () => {
     ElMessageBox.confirm(
-      '确定要退出 SSLProxyManager 吗？\n\n退出后，代理服务将停止运行。',
-      '确认退出',
+      t('app.confirmQuit'),
+      t('app.quit'),
       {
-        confirmButtonText: '退出',
-        cancelButtonText: '取消',
+        confirmButtonText: t('app.quit'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
@@ -589,7 +593,7 @@ const setupQuitHandler = async () => {
 
 // 初始化应用核心逻辑（公共部分）
 const initializeAppCore = async () => {
-  status.value = await GetStatus()
+  status.value = (await GetStatus()) as string
   try {
     await SetTrayProxyState(status.value === 'running')
   } catch {
@@ -626,10 +630,13 @@ const initializeAppCore = async () => {
   // 监听后端启动错误
   await EventsOn('server-start-error', (payload: any) => {
     try {
-      const msg = `端口 ${payload?.listen_addr ?? ''} 启动失败: ${payload?.error ?? JSON.stringify(payload)}`
+      const msg = t('app.portStartFailed', { 
+        port: payload?.listen_addr ?? '', 
+        error: payload?.error ?? JSON.stringify(payload) 
+      })
       console.error('[server-start-error]', payload)
       ElNotification({
-        title: '服务启动失败',
+        title: t('app.serverStartError'),
         message: msg,
         type: 'error',
         duration: 0, // 不自动关闭
@@ -656,14 +663,17 @@ const initializeAppCore = async () => {
   await EventsOn('update-check-result', (result: any) => {
     if (result?.has_update && result?.update_info) {
       const info = result.update_info;
-      const message = `发现新版本 ${info.latest_version}\n\n${info.release_notes || '无更新说明'}`;
+      const message = t('app.newVersion', { 
+        version: info.latest_version, 
+        notes: info.release_notes || '' 
+      });
       
       ElMessageBox.confirm(
         message,
-        '发现新版本',
+        t('app.updateAvailable'),
         {
-          confirmButtonText: '下载更新',
-          cancelButtonText: '稍后再说',
+          confirmButtonText: t('app.downloadUpdate'),
+          cancelButtonText: t('app.later'),
           type: 'warning',
           dangerouslyUseHTMLString: true,
           showClose: false,

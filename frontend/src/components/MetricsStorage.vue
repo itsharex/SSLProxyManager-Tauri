@@ -2,25 +2,25 @@
 <template>
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
-      <h3>数据持久化</h3>
+      <h3>{{ $t('metricsStorage.title') }}</h3>
     </template>
 
     <el-form :model="localConfig" label-width="180px">
-      <el-form-item label="启用数据持久化">
+      <el-form-item :label="$t('metricsStorage.enable')">
         <el-switch v-model="localConfig.enabled" />
         <el-text type="info" size="small" class="hint">
-          启用后，系统将定期将指标数据保存到数据库，可用于查看历史数据
+          {{ $t('metricsStorage.enableHint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item v-if="localConfig.enabled" label="数据库文件路径">
+      <el-form-item v-if="localConfig.enabled" :label="$t('metricsStorage.dbPath')">
         <el-input
           v-model="localConfig.db_path"
-          placeholder="留空使用默认路径：程序目录/data/metrics.db"
+          :placeholder="$t('metricsStorage.dbPathPlaceholder')"
           style="max-width: 500px;"
         />
         <el-text type="info" size="small" class="hint">
-          留空则使用默认路径。支持绝对路径或相对路径
+          {{ $t('metricsStorage.dbPathHint') }}
         </el-text>
       </el-form-item>
 
@@ -151,6 +151,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
 import { useDBStatus } from '../composables/useDBStatus'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   config: any

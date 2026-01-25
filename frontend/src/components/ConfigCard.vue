@@ -3,9 +3,9 @@
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-        <h3>代理配置</h3>
+        <h3>{{ $t('configCard.title') }}</h3>
         <el-button type="primary" @click="exportConfigToml">
-          导出当前配置
+          {{ $t('configCard.exportConfig') }}
         </el-button>
       </div>
     </template>
@@ -20,7 +20,7 @@
       >
         <template #header>
           <div class="rule-header">
-            <h4>规则 {{ ruleIndex + 1 }}</h4>
+            <h4>{{ $t('configCard.rule') }} {{ ruleIndex + 1 }}</h4>
             <div style="display: flex; align-items: center; gap: 12px;">
               <el-switch v-model="rule.Enabled" @change="() => onToggleListenRuleEnabled(rule)" />
               <el-button 
@@ -29,18 +29,18 @@
                 size="small"
                 :disabled="rules.length <= 1"
               >
-                删除规则
+                {{ $t('configCard.deleteRule') }}
               </el-button>
             </div>
           </div>
         </template>
 
         <el-form :model="rule" label-width="120px" class="form-grid">
-          <el-form-item label="监听地址">
+          <el-form-item :label="$t('configCard.listenAddr')">
             <el-input v-model="rule.ListenAddr" placeholder="0.0.0.0:8888" style="width: 260px;"/>
           </el-form-item>
 
-          <el-form-item label="路由规则" required>
+          <el-form-item :label="$t('configCard.routes')" required>
             <TransitionGroup name="list" tag="div" class="routes-section">
               <el-card 
                 v-for="(rt, routeIndex) in rule.Routes" 
@@ -50,7 +50,7 @@
               >
                 <template #header>
                   <div class="route-header">
-                    <div class="route-title">路由 {{ routeIndex + 1 }}</div>
+                    <div class="route-title">{{ $t('configCard.route') }} {{ routeIndex + 1 }}</div>
                     <div style="display: flex; align-items: center; gap: 12px;">
                       <el-switch v-model="rt.Enabled" @change="() => onToggleRouteEnabled(rule, rt)" />
                       <el-button
@@ -59,7 +59,7 @@
                         size="small"
                         :disabled="rule.Routes.length <= 1"
                       >
-                        删除路由
+                        {{ $t('configCard.deleteRoute') }}
                       </el-button>
                     </div>
                   </div>
@@ -68,46 +68,46 @@
                 <el-form :model="rt" label-width="160px" class="route-form">
                   <el-row :gutter="20" class="route-match">
                     <el-col :span="10">
-                      <el-form-item label="Host（可选）">
-                        <el-input v-model="rt.Host" placeholder="Host 匹配未实现；如需修改上游 Host 请在 proxy_set_header 中设置 Host" />
+                      <el-form-item :label="$t('configCard.host')">
+                        <el-input v-model="rt.Host" :placeholder="$t('configCard.hostPlaceholder')" />
                       </el-form-item>
                     </el-col>
                     <el-col :span="10">
-                      <el-form-item label="Path 前缀（location）">
-                        <el-input v-model="rt.Path" placeholder="/ 或 /api" />
+                      <el-form-item :label="$t('configCard.pathPrefix')">
+                        <el-input v-model="rt.Path" :placeholder="$t('configCard.pathPlaceholder')" />
                       </el-form-item>
                     </el-col>
                   </el-row>
 
                   <el-row :gutter="22">
                     <el-col :span="10">
-                      <el-form-item label="proxy_pass_path（可选）">
-                        <el-input v-model="rt.ProxyPassPath" placeholder="/v1 （留空表示不重写）" />
+                      <el-form-item :label="$t('configCard.proxyPassPath')">
+                        <el-input v-model="rt.ProxyPassPath" :placeholder="$t('configCard.proxyPassPathPlaceholder')" />
                         <el-text type="info" size="small" class="mini-hint">
-                          等价 nginx: proxy_pass http://upstream&lt;这里&gt;;
+                          {{ $t('configCard.proxyPassPathHint') }}
                         </el-text>
                       </el-form-item>
 
-                      <el-form-item label="follow_redirects" style="margin-top: 10px;">
+                      <el-form-item :label="$t('configCard.followRedirects')" style="margin-top: 10px;">
                         <el-switch v-model="rt.FollowRedirects" />
                         <el-text type="info" size="small" class="mini-hint">
-                          开启：由代理端跟随上游 30x 并返回最终响应（客户端通常不会再跳转）；关闭：直接把 30x 原样返回给客户端（浏览器会自动跳转）。网站类反代建议关闭，API 如需可开启
+                          {{ $t('configCard.followRedirectsHint') }}
                         </el-text>
                       </el-form-item>
                     </el-col>
                     <el-col :span="10">
-                      <el-form-item label="静态文件目录（可选）">
+                      <el-form-item :label="$t('configCard.staticDir')">
                         <div class="file-selector">
-                          <el-input v-model="rt.StaticDir" placeholder="./frontend/dist 或绝对路径" readonly />
+                          <el-input v-model="rt.StaticDir" :placeholder="$t('configCard.staticDirPlaceholder')" readonly />
                         </div>
                         <el-text type="info" size="small" class="mini-hint">
-                          优先提供静态文件，不存在时回退到上游服务器
+                          {{ $t('configCard.staticDirHint') }}
                         </el-text>
                       </el-form-item>
                     </el-col>
                     <el-col :span="2">
                       <el-button @click="selectDirectory(ruleIndex, routeIndex)" size="small" type="primary" :icon="Folder">
-                            选择目录
+                            {{ $t('configCard.selectDir') }}
                           </el-button>
                     </el-col>
                   </el-row>
@@ -116,10 +116,10 @@
                     <el-col :span="10">
                       <el-form-item>
                         <el-checkbox v-model="rt.ExcludeBasicAuth">
-                          排除 Basic Auth 验证
+                          {{ $t('configCard.excludeBasicAuth') }}
                         </el-checkbox>
                         <el-text type="info" size="small" class="mini-hint">
-                          勾选后，此路由将跳过 Basic Auth 验证
+                          {{ $t('configCard.excludeBasicAuthHint') }}
                         </el-text>
                       </el-form-item>
                     </el-col>
@@ -127,7 +127,7 @@
                 </el-form>
 
                 <div class="sub-section">
-                  <div class="sub-section-header">上游服务器</div>
+                  <div class="sub-section-header">{{ $t('configCard.upstreamServers') }}</div>
                   <div class="sub-section-body">
                     <TransitionGroup name="list" tag="div">
                       <div v-for="(upstream, index) in rt.Upstreams" :key="index" class="upstream-item">
@@ -138,7 +138,7 @@
                           <el-input-number
                             v-model="upstream.Weight"
                             :min="1"
-                            placeholder="权重"
+                            :placeholder="$t('configCard.weight')"
                           />
                           <el-button
                             @click="removeUpstream(ruleIndex, routeIndex, index)"
@@ -146,130 +146,130 @@
                             size="small"
                             :disabled="rt.Upstreams.length <= 1 && !(rt.StaticDir && rt.StaticDir.trim() !== '')"
                           >
-                            删除
+                            {{ $t('configCard.delete') }}
                           </el-button>
                       </div>
                     </TransitionGroup>
                     <el-button @click="addUpstream(ruleIndex, routeIndex)" type="primary" style="margin-top: 12px;">
-                      <el-icon><Plus /></el-icon> 添加新的上游服务器
+                      <el-icon><Plus /></el-icon> {{ $t('configCard.addUpstream') }}
                     </el-button>
                   </div>
                 </div>
 
                 <div class="sub-section">
-                  <div class="sub-section-header">proxy_set_header（可选）</div>
+                  <div class="sub-section-header">{{ $t('configCard.proxySetHeader') }}</div>
                   <div class="sub-section-body">
                     <el-text type="info" size="small" class="headers-hint">
-                      支持变量：$remote_addr / $proxy_add_x_forwarded_for / $scheme
+                      {{ $t('configCard.proxySetHeaderHint') }}
                     </el-text>
                     <div class="headers-actions">
                       <el-button @click="applyCommonHeaders(rt)" type="primary" size="small">
-                        <el-icon><MagicStick /></el-icon> 快速应用常用 Nginx Headers
+                        <el-icon><MagicStick /></el-icon> {{ $t('configCard.quickApplyHeaders') }}
                       </el-button>
                     </div>
                     <TransitionGroup name="list" tag="div">
                       <div v-for="(kv, hIndex) in (rt.SetHeadersList || [])" :key="hIndex" class="header-item">
-                        <el-input v-model="kv.Key" placeholder="Header-Key (如 Host)" />
-                        <el-input v-model="kv.Value" placeholder="Header-Value (如 $remote_addr)" />
-                        <el-button @click="(rt.SetHeadersList || []).splice(hIndex, 1)" type="danger" size="small">删除</el-button>
+                        <el-input v-model="kv.Key" :placeholder="$t('configCard.headerKeyPlaceholder')" />
+                        <el-input v-model="kv.Value" :placeholder="$t('configCard.headerValuePlaceholder')" />
+                        <el-button @click="(rt.SetHeadersList || []).splice(hIndex, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
                       </div>
                     </TransitionGroup>
                     <el-button @click="(rt.SetHeadersList ||= []).push({ Key: '', Value: '' })" type="primary" size="small" style="margin-top: 12px;">
-                      <el-icon><Plus /></el-icon> 添加自定义 Header
+                      <el-icon><Plus /></el-icon> {{ $t('configCard.addHeader') }}
                     </el-button>
                   </div>
                 </div>
 
                 <div class="sub-section">
-                  <div class="sub-section-header">请求/响应修改</div>
+                  <div class="sub-section-header">{{ $t('configCard.requestResponseModify') }}</div>
                   <div class="sub-section-body">
                     <!-- URL 重写规则 -->
-                    <el-form-item label="URL 重写规则">
+                    <el-form-item :label="$t('configCard.urlRewrite')">
                       <TransitionGroup name="list" tag="div">
                         <div v-for="(rule, idx) in (rt.UrlRewriteRules || [])" :key="idx" class="rewrite-rule-item">
-                          <el-input v-model="rule.Pattern" placeholder="正则表达式，如: ^/api/(.*)$" style="flex: 1;" />
-                          <el-input v-model="rule.Replacement" placeholder="替换为，如: /v1/$1" style="flex: 1;" />
+                          <el-input v-model="rule.Pattern" :placeholder="$t('configCard.urlRewritePattern')" style="flex: 1;" />
+                          <el-input v-model="rule.Replacement" :placeholder="$t('configCard.urlRewriteReplacement')" style="flex: 1;" />
                           <el-switch v-model="rule.Enabled" />
-                          <el-button @click="(rt.UrlRewriteRules || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                          <el-button @click="(rt.UrlRewriteRules || []).splice(idx, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
                         </div>
                       </TransitionGroup>
                       <el-button @click="(rt.UrlRewriteRules ||= []).push({ Pattern: '', Replacement: '', Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
-                        <el-icon><Plus /></el-icon> 添加 URL 重写规则
+                        <el-icon><Plus /></el-icon> {{ $t('configCard.addUrlRewrite') }}
                       </el-button>
                       <el-text type="info" size="small" class="mini-hint">
-                        使用正则表达式匹配 URL，支持 $1, $2 等捕获组。例如：^/api/(.*)$ 替换为 /v1/$1
+                        {{ $t('configCard.urlRewriteHint') }}
                       </el-text>
                     </el-form-item>
 
                     <!-- 请求体替换规则 -->
-                    <el-form-item label="请求体替换规则">
+                    <el-form-item :label="$t('configCard.requestBodyReplace')">
                       <TransitionGroup name="list" tag="div">
                         <div v-for="(rule, idx) in (rt.RequestBodyReplace || [])" :key="idx" class="replace-rule-item">
-                          <el-input v-model="rule.Find" placeholder="查找文本（支持正则）" style="flex: 1;" />
-                          <el-input v-model="rule.Replace" placeholder="替换为" style="flex: 1;" />
-                          <el-checkbox v-model="rule.UseRegex">正则</el-checkbox>
+                          <el-input v-model="rule.Find" :placeholder="$t('configCard.findText')" style="flex: 1;" />
+                          <el-input v-model="rule.Replace" :placeholder="$t('configCard.replaceWith')" style="flex: 1;" />
+                          <el-checkbox v-model="rule.UseRegex">{{ $t('configCard.regex') }}</el-checkbox>
                           <el-switch v-model="rule.Enabled" />
-                          <el-button @click="(rt.RequestBodyReplace || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                          <el-button @click="(rt.RequestBodyReplace || []).splice(idx, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
                         </div>
                       </TransitionGroup>
                       <el-button @click="(rt.RequestBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
-                        <el-icon><Plus /></el-icon> 添加请求体替换规则
+                        <el-icon><Plus /></el-icon> {{ $t('configCard.addRequestBodyReplace') }}
                       </el-button>
                       <el-text type="info" size="small" class="mini-hint">
-                        对请求体进行文本替换，支持正则表达式。仅对文本类型的请求体有效。
+                        {{ $t('configCard.requestBodyReplaceHint') }}
                       </el-text>
                     </el-form-item>
 
                     <!-- 响应体替换规则 -->
-                    <el-form-item label="响应体替换规则">
+                    <el-form-item :label="$t('configCard.responseBodyReplace')">
                       <el-alert
                         type="warning"
                         :closable="false"
                         style="margin-bottom: 12px;"
                       >
                         <template #title>
-                          <strong>⚠️ 法律风险提示</strong>
+                          <strong>{{ $t('configCard.legalWarning') }}</strong>
                         </template>
                         <template #default>
                           <div style="font-size: 12px; line-height: 1.6;">
-                            响应体修改功能可用于合法用途（如内容定制、广告过滤等），但请确保：
-                            <br />• 仅在你拥有或已获得授权的设备/网络上使用
-                            <br />• 不用于欺诈、钓鱼或其他非法用途
-                            <br />• 遵守相关法律法规和网站服务条款
-                            <br />• 任何非法使用产生的法律责任由使用者自行承担
+                            {{ $t('configCard.legalWarningContent') }}
+                            <br />• {{ $t('configCard.legalWarningItem1') }}
+                            <br />• {{ $t('configCard.legalWarningItem2') }}
+                            <br />• {{ $t('configCard.legalWarningItem3') }}
+                            <br />• {{ $t('configCard.legalWarningItem4') }}
                           </div>
                         </template>
                       </el-alert>
                       <TransitionGroup name="list" tag="div">
                         <div v-for="(rule, idx) in (rt.ResponseBodyReplace || [])" :key="idx" class="replace-rule-item">
-                          <el-input v-model="rule.Find" placeholder="查找文本（支持正则）" style="flex: 1;" />
-                          <el-input v-model="rule.Replace" placeholder="替换为" style="flex: 1;" />
-                          <el-checkbox v-model="rule.UseRegex">正则</el-checkbox>
+                          <el-input v-model="rule.Find" :placeholder="$t('configCard.findText')" style="flex: 1;" />
+                          <el-input v-model="rule.Replace" :placeholder="$t('configCard.replaceWith')" style="flex: 1;" />
+                          <el-checkbox v-model="rule.UseRegex">{{ $t('configCard.regex') }}</el-checkbox>
                           <el-switch v-model="rule.Enabled" />
-                          <el-button @click="(rt.ResponseBodyReplace || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                          <el-button @click="(rt.ResponseBodyReplace || []).splice(idx, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
                         </div>
                       </TransitionGroup>
                       <el-button @click="(rt.ResponseBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
-                        <el-icon><Plus /></el-icon> 添加响应体替换规则
+                        <el-icon><Plus /></el-icon> {{ $t('configCard.addResponseBodyReplace') }}
                       </el-button>
                       <el-text type="info" size="small" class="mini-hint">
-                        对响应体进行文本替换，支持正则表达式。仅对文本类型的响应体有效。
+                        {{ $t('configCard.responseBodyReplaceHint') }}
                       </el-text>
                     </el-form-item>
 
                     <!-- 移除请求/响应头 -->
-                    <el-form-item label="移除请求/响应头">
+                    <el-form-item :label="$t('configCard.removeHeaders')">
                       <TransitionGroup name="list" tag="div">
                         <div v-for="(header, idx) in (rt.RemoveHeaders || [])" :key="idx" class="header-item">
-                          <el-input v-model="rt.RemoveHeaders[idx]" placeholder="Header 名称，如: X-API-Key" />
-                          <el-button @click="(rt.RemoveHeaders || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                          <el-input v-model="(rt.RemoveHeaders || [])[idx]" :placeholder="$t('configCard.headerNamePlaceholder')" />
+                          <el-button @click="(rt.RemoveHeaders || []).splice(idx, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
                         </div>
                       </TransitionGroup>
                       <el-button @click="(rt.RemoveHeaders ||= []).push('')" type="primary" size="small" style="margin-top: 12px;">
-                        <el-icon><Plus /></el-icon> 添加要移除的 Header
+                        <el-icon><Plus /></el-icon> {{ $t('configCard.addRemoveHeader') }}
                       </el-button>
                       <el-text type="info" size="small" class="mini-hint">
-                        指定要从请求和响应中移除的 Header 名称。
+                        {{ $t('configCard.removeHeadersHint') }}
                       </el-text>
                     </el-form-item>
                   </div>
@@ -277,50 +277,50 @@
               </el-card>
             </TransitionGroup>
               <el-button @click="addRoute(ruleIndex)" type="primary" style="margin-top: 10px;">
-                <el-icon><Plus /></el-icon> 添加新的路由规则
+                <el-icon><Plus /></el-icon> {{ $t('configCard.addNewRoute') }}
               </el-button>
           </el-form-item>
 
           <el-form-item>
-            <el-checkbox v-model="rule.SSLEnable">该规则启用 SSL/HTTPS</el-checkbox>
+            <el-checkbox v-model="rule.SSLEnable">{{ $t('configCard.enableSSLForRule') }}</el-checkbox>
           </el-form-item>
 
           <template v-if="rule.SSLEnable">
-            <el-form-item label="证书文件 (cert)">
+            <el-form-item :label="$t('configCard.certFileLabel')">
               <div class="file-selector">
                 <el-input v-model="rule.CertFile" placeholder="ssl/server.crt" readonly />
                 <el-button @click="selectCertFile(ruleIndex)" type="primary" :icon="Folder">
-                  选择文件
+                  {{ $t('configCard.selectFile') }}
                 </el-button>
               </div>
             </el-form-item>
-            <el-form-item label="私钥文件 (key)">
+            <el-form-item :label="$t('configCard.keyFileLabel')">
               <div class="file-selector">
                 <el-input v-model="rule.KeyFile" placeholder="ssl/server.key" readonly />
                 <el-button @click="selectKeyFile(ruleIndex)" type="primary" :icon="Folder">
-                  选择文件
+                  {{ $t('configCard.selectFile') }}
                 </el-button>
               </div>
             </el-form-item>
           </template>
 
           <el-form-item>
-            <el-checkbox v-model="rule.BasicAuthEnable">启用 Basic Auth 认证</el-checkbox>
+            <el-checkbox v-model="rule.BasicAuthEnable">{{ $t('configCard.enableBasicAuth') }}</el-checkbox>
           </el-form-item>
 
           <template v-if="rule.BasicAuthEnable">
-            <el-form-item label="用户名">
+            <el-form-item :label="$t('configCard.username')">
               <el-input v-model="rule.BasicAuthUsername" placeholder="admin" />
             </el-form-item>
-            <el-form-item label="密码">
+            <el-form-item :label="$t('configCard.password')">
               <el-input v-model="rule.BasicAuthPassword" type="password" placeholder="password" show-password />
             </el-form-item>
             <el-form-item>
               <el-checkbox v-model="rule.BasicAuthForwardHeader">
-                将 Basic Auth 头转发到上游服务器
+                {{ $t('configCard.forwardBasicAuthHeader') }}
               </el-checkbox>
               <el-text type="info" size="small" class="mini-hint">
-                默认不转发，避免影响后端 API 的认证（如 JWT、OAuth 等）
+                {{ $t('configCard.forwardBasicAuthHeaderHint') }}
               </el-text>
             </el-form-item>
           </template>
@@ -328,14 +328,14 @@
           <el-divider />
 
           <el-form-item>
-            <el-checkbox v-model="rule.RateLimitEnabled">启用速率限制</el-checkbox>
+            <el-checkbox v-model="rule.RateLimitEnabled">{{ $t('configCard.enableRateLimit') }}</el-checkbox>
             <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-              按IP限制请求频率，防止DDoS攻击和滥用。
+              {{ $t('configCard.rateLimitHint') }}
             </el-text>
           </el-form-item>
 
           <template v-if="rule.RateLimitEnabled">
-            <el-form-item label="每秒请求数限制">
+            <el-form-item :label="$t('configCard.rateLimitRequestsPerSecond')">
               <el-input-number 
                 v-model="rule.RateLimitRequestsPerSecond" 
                 :min="1" 
@@ -345,11 +345,11 @@
                 style="width: 200px;"
               />
               <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-                每个IP每秒允许的最大请求数。推荐值：10-100。
+                {{ $t('configCard.rateLimitRequestsPerSecondHint') }}
               </el-text>
             </el-form-item>
 
-            <el-form-item label="突发请求数">
+            <el-form-item :label="$t('configCard.rateLimitBurstSize')">
               <el-input-number 
                 v-model="rule.RateLimitBurstSize" 
                 :min="1" 
@@ -359,11 +359,11 @@
                 style="width: 200px;"
               />
               <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-                令牌桶容量，允许短时间内的突发请求。推荐值：20-100。
+                {{ $t('configCard.rateLimitBurstSizeHint') }}
               </el-text>
             </el-form-item>
 
-            <el-form-item label="超过限制封禁秒数">
+            <el-form-item :label="$t('configCard.rateLimitBanSeconds')">
               <el-input-number 
                 v-model="rule.RateLimitBanSeconds" 
                 :min="0" 
@@ -373,7 +373,7 @@
                 style="width: 200px;"
               />
               <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-                超过速率限制后自动封禁的秒数。0表示不封禁，只返回429错误。推荐值：60-3600。
+                {{ $t('configCard.rateLimitBanSecondsHint') }}
               </el-text>
             </el-form-item>
           </template>
@@ -382,7 +382,7 @@
     </TransitionGroup>
 
       <el-button @click="addRule" type="primary" style="margin-top: 10px;">
-        <el-icon><Plus /></el-icon> 添加新的监听规则
+        <el-icon><Plus /></el-icon> {{ $t('configCard.addNewListenRule') }}
       </el-button>
   </el-card>
 </template>
@@ -392,6 +392,9 @@ import { ref, onMounted } from 'vue'
 import { GetConfig, OpenCertFileDialog, OpenKeyFileDialog, OpenDirectoryDialog, ExportCurrentConfigToml, SetListenRuleEnabled, SetRouteEnabled } from '../api'
 import { Plus, MagicStick, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Upstream {
   URL: string
@@ -485,7 +488,7 @@ const rules = ref<ListenRule[]>([
 const onToggleListenRuleEnabled = async (rule: ListenRule) => {
   try {
     if (!rule.ID) {
-      ElMessage.warning('请先保存配置以生成规则 ID')
+      ElMessage.warning(t('configCard.saveConfigFirst'))
       rule.Enabled = true
       return
     }
@@ -498,9 +501,9 @@ const onToggleListenRuleEnabled = async (rule: ListenRule) => {
         rule.Enabled = !!found.enabled
       }
     }
-    ElMessage.success(next ? '监听规则已启用' : '监听规则已禁用')
+    ElMessage.success(next ? t('configCard.listenRuleEnabled') : t('configCard.listenRuleDisabled'))
   } catch (error: any) {
-    ElMessage.error(`切换监听规则失败: ${error?.message || error}`)
+    ElMessage.error(t('configCard.toggleListenRuleFailed', { error: error?.message || error }))
     rule.Enabled = !rule.Enabled
   }
 }
@@ -508,7 +511,7 @@ const onToggleListenRuleEnabled = async (rule: ListenRule) => {
 const onToggleRouteEnabled = async (rule: ListenRule, rt: Route) => {
   try {
     if (!rule.ID || !rt.ID) {
-      ElMessage.warning('请先保存配置以生成规则/路由 ID')
+      ElMessage.warning(t('configCard.saveConfigFirstForRoute'))
       rt.Enabled = true
       return
     }
@@ -521,9 +524,9 @@ const onToggleRouteEnabled = async (rule: ListenRule, rt: Route) => {
         rt.Enabled = !!foundRt.enabled
       }
     }
-    ElMessage.success(next ? '路由已启用' : '路由已禁用')
+    ElMessage.success(next ? t('configCard.routeEnabled') : t('configCard.routeDisabled'))
   } catch (error: any) {
-    ElMessage.error(`切换路由失败: ${error?.message || error}`)
+    ElMessage.error(t('configCard.toggleRouteFailed', { error: error?.message || error }))
     rt.Enabled = !rt.Enabled
   }
 }
@@ -751,7 +754,7 @@ const selectCertFile = async (ruleIndex: number) => {
       rules.value[ruleIndex].CertFile = String(filePath)
     }
   } catch (error: any) {
-    ElMessage.error(`选择证书文件失败: ${error.message || error}`)
+    ElMessage.error(t('configCard.selectCertFileFailed', { error: error.message || error }))
   }
 }
 
@@ -762,7 +765,7 @@ const selectKeyFile = async (ruleIndex: number) => {
       rules.value[ruleIndex].KeyFile = String(filePath)
     }
   } catch (error: any) {
-    ElMessage.error(`选择私钥文件失败: ${error.message || error}`)
+    ElMessage.error(t('configCard.selectKeyFileFailed', { error: error.message || error }))
   }
 }
 
@@ -777,7 +780,7 @@ const selectDirectory = async (ruleIndex: number, routeIndex: number) => {
       rt.Upstreams = (rt.Upstreams || []).filter((u) => (u.URL || '').trim() !== '')
     }
   } catch (error: any) {
-    ElMessage.error(`选择目录失败: ${error.message || error}`)
+    ElMessage.error(t('configCard.selectDirFailed', { error: error.message || error }))
   }
 }
 
@@ -791,10 +794,10 @@ const exportConfigToml = async () => {
   try {
     const savedPath = (await ExportCurrentConfigToml()) as string | null
     if (savedPath) {
-      ElMessage.success(`已导出到: ${savedPath}`)
+      ElMessage.success(t('configCard.exportSuccess', { path: savedPath }))
     }
   } catch (error: any) {
-    ElMessage.error(`导出失败: ${error?.message || error}`)
+    ElMessage.error(t('configCard.exportFailed', { error: error?.message || error }))
   }
 }
 
@@ -865,29 +868,29 @@ const getConfig = () => {
   for (let i = 0; i < cleanedRules.length; i++) {
     const rule = cleanedRules[i]
     if (!rule.ListenAddr) {
-      throw new Error(`规则 ${i + 1}：监听地址不能为空`)
+      throw new Error(t('configCard.ruleListenAddrEmpty', { index: i + 1 }))
     }
     if (!rule.Routes || rule.Routes.length === 0) {
-      throw new Error(`规则 ${i + 1}：请至少配置一个路由（routes）`)
+      throw new Error(t('configCard.ruleNoRoutes', { index: i + 1 }))
     }
 
     for (let j = 0; j < rule.Routes.length; j++) {
       const rt: any = rule.Routes[j]
       if (!rt.Path) {
-        throw new Error(`规则 ${i + 1} / 路由 ${j + 1}：Path 不能为空（至少为 /）`)
+        throw new Error(t('configCard.routePathEmpty', { ruleIndex: i + 1, routeIndex: j + 1 }))
       }
       const hasUpstreams = rt.Upstreams && rt.Upstreams.length > 0
       const hasStaticDir = rt.StaticDir && rt.StaticDir.trim() !== ''
       if (!hasUpstreams && !hasStaticDir) {
-        throw new Error(`规则 ${i + 1} / 路由 ${j + 1}：请至少配置一个上游服务器地址或静态文件目录`)
+        throw new Error(t('configCard.routeNoUpstreamOrStatic', { ruleIndex: i + 1, routeIndex: j + 1 }))
       }
     }
 
     if (rule.SSLEnable && (!rule.CertFile || !rule.KeyFile)) {
-      throw new Error(`规则 ${i + 1}：启用SSL时证书文件和私钥文件不能为空`)
+      throw new Error(t('configCard.ruleSSLCertEmpty', { index: i + 1 }))
     }
     if (rule.BasicAuthEnable && (!rule.BasicAuthUsername || !rule.BasicAuthPassword)) {
-      throw new Error(`规则 ${i + 1}：启用Basic Auth时用户名和密码不能为空`)
+      throw new Error(t('configCard.ruleBasicAuthEmpty', { index: i + 1 }))
     }
   }
 

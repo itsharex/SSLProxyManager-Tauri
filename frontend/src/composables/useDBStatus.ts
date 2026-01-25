@@ -2,6 +2,7 @@ import { ref, Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 // @ts-ignore
 import { GetMetricsDBStatusDetail } from '../api'
+import { useI18n } from 'vue-i18n'
 
 export interface DBStatus {
   enabled: boolean
@@ -42,6 +43,7 @@ const sharedDBStatus = ref<DBStatus | null>(null)
  * - checkDBStatus: 检查数据库状态的方法
  */
 export const useDBStatus = () => {
+  const { t } = useI18n()
   // 每个组件实例有独立的加载状态
   const loading = ref(false)
 
@@ -59,9 +61,9 @@ export const useDBStatus = () => {
 
       if (showMessage) {
         if (status.initialized && status.file_exists) {
-          ElMessage.success('数据库状态正常')
+          ElMessage.success(t('metricsStorage.databaseStatusNormal'))
         } else if (status.error) {
-          ElMessage.warning('数据库状态异常：' + status.error)
+          ElMessage.warning(t('metricsStorage.databaseStatusAbnormal', { error: status.error }))
         }
       }
 
@@ -71,7 +73,7 @@ export const useDBStatus = () => {
       const errorMsg = error?.message || String(error)
       
       if (showMessage) {
-        ElMessage.error('获取数据库状态失败: ' + errorMsg)
+        ElMessage.error(t('metricsStorage.databaseStatusAbnormal', { error: errorMsg }))
       }
       
       return null

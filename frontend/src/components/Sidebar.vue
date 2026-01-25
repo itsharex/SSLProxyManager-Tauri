@@ -1,60 +1,60 @@
 <template>
   <el-card class="sidebar-nav" :class="{ 'sidebar-collapsed': isCollapsed }" shadow="hover">
     <div class="sidebar-header">
-      <el-button @click="toggleSidebar" circle class="collapse-btn" :title="isCollapsed ? '展开侧边栏' : '折叠侧边栏'">
+      <el-button @click="toggleSidebar" circle class="collapse-btn" :title="isCollapsed ? $t('sidebar.expand') : $t('sidebar.collapse')">
         <el-icon><Fold v-if="!isCollapsed" /><Expand v-else /></el-icon>
       </el-button>
     </div>
     <el-menu :default-active="activeTab" class="nav-menu" :collapse="isCollapsed" :collapse-transition="true" @select="handleMenuSelect">
-      <el-menu-item-group :title="isCollapsed ? '' : '配置管理'">
+      <el-menu-item-group :title="isCollapsed ? '' : $t('sidebar.configManagement')">
         <el-menu-item index="config">
           <el-icon><Setting /></el-icon>
-          <template #title>代理配置</template>
+          <template #title>{{ $t('sidebar.proxyConfig') }}</template>
         </el-menu-item>
         <el-menu-item index="ws">
           <el-icon><Setting /></el-icon>
-          <template #title>WS 代理配置</template>
+          <template #title>{{ $t('sidebar.wsProxyConfig') }}</template>
         </el-menu-item>
         <el-menu-item index="stream">
           <el-icon><Setting /></el-icon>
-          <template #title>Stream 配置</template>
+          <template #title>{{ $t('sidebar.streamConfig') }}</template>
         </el-menu-item>
         <el-menu-item index="access">
           <el-icon><Lock /></el-icon>
-          <template #title>访问控制</template>
+          <template #title>{{ $t('sidebar.accessControl') }}</template>
         </el-menu-item>
         <el-menu-item index="storage">
           <el-icon><Document /></el-icon>
-          <template #title>数据持久化</template>
+          <template #title>{{ $t('sidebar.dataPersistence') }}</template>
         </el-menu-item>
         <el-menu-item index="base">
           <el-icon><Setting /></el-icon>
-          <template #title>基础配置</template>
+          <template #title>{{ $t('sidebar.baseConfig') }}</template>
         </el-menu-item>
       </el-menu-item-group>
 
-      <el-menu-item-group :title="isCollapsed ? '' : '监控分析'">
+      <el-menu-item-group :title="isCollapsed ? '' : $t('sidebar.monitoring')">
         <el-menu-item index="dashboard">
           <el-icon><DataAnalysis /></el-icon>
-          <template #title>仪表盘</template>
+          <template #title>{{ $t('sidebar.dashboard') }}</template>
         </el-menu-item>
       </el-menu-item-group>
 
-      <el-menu-item-group :title="isCollapsed ? '' : '日志查询'">
+      <el-menu-item-group :title="isCollapsed ? '' : $t('sidebar.logs')">
         <el-menu-item index="requestLogs">
           <el-icon><Search /></el-icon>
-          <template #title>请求记录查询</template>
+          <template #title>{{ $t('sidebar.requestLogs') }}</template>
         </el-menu-item>
         <el-menu-item index="logs">
           <el-icon><Document /></el-icon>
-          <template #title>访问日志</template>
+          <template #title>{{ $t('sidebar.accessLogs') }}</template>
         </el-menu-item>
       </el-menu-item-group>
 
-      <el-menu-item-group :title="isCollapsed ? '' : '系统'">
+      <el-menu-item-group :title="isCollapsed ? '' : $t('sidebar.system')">
         <el-menu-item index="about">
           <el-icon><InfoFilled /></el-icon>
-          <template #title>关于</template>
+          <template #title>{{ $t('sidebar.about') }}</template>
         </el-menu-item>
       </el-menu-item-group>
     </el-menu>
@@ -63,6 +63,9 @@
 
 <script setup lang="ts">
 import { Setting, DataAnalysis, Document, Lock, Search, Fold, Expand, InfoFilled } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 defineProps<{ 
   isCollapsed: boolean;

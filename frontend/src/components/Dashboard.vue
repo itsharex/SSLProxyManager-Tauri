@@ -2,38 +2,38 @@
   <div class="config-card config-page">
     <div class="header">
         <div>
-          <h3>仪表盘</h3>
-          <el-text type="info" size="small" class="hint">每2秒更新；仅在仪表盘激活时订阅并渲染</el-text>
+          <h3>{{ $t('dashboard.title') }}</h3>
+          <el-text type="info" size="small" class="hint">{{ $t('dashboard.updateHint') }}</el-text>
         </div>
 
         <div class="controls">
-          <el-form-item label="监听地址" style="margin-bottom: 0;">
+          <el-form-item :label="$t('dashboard.listenAddr')" style="margin-bottom: 0;">
             <el-select v-model="selectedListen" style="width: 200px;">
               <el-option v-for="a in listenAddrs" :key="a" :label="a" :value="a" />
             </el-select>
           </el-form-item>
 
-          <el-form-item label="显示周期" style="margin-bottom: 0;">
+          <el-form-item :label="$t('dashboard.displayPeriod')" style="margin-bottom: 0;">
             <el-select v-model.number="selectedWindow" style="width: 150px;">
-              <el-option label="1分钟" :value="60" />
-              <el-option label="15分钟" :value="900" />
-              <el-option label="30分钟" :value="1800" />
-              <el-option label="1小时" :value="3600" />
-              <el-option label="3小时" :value="10800" />
-              <el-option label="6小时" :value="21600" />
-              <el-option label="12小时" :value="43200" />
-              <el-option label="24小时" :value="86400" />
+              <el-option :label="$t('dashboard.oneMinute')" :value="60" />
+              <el-option :label="$t('dashboard.fifteenMinutes')" :value="900" />
+              <el-option :label="$t('dashboard.thirtyMinutes')" :value="1800" />
+              <el-option :label="$t('dashboard.oneHour')" :value="3600" />
+              <el-option :label="$t('dashboard.threeHours')" :value="10800" />
+              <el-option :label="$t('dashboard.sixHours')" :value="21600" />
+              <el-option :label="$t('dashboard.twelveHours')" :value="43200" />
+              <el-option :label="$t('dashboard.twentyFourHours')" :value="86400" />
             </el-select>
           </el-form-item>
 
-          <el-form-item label="历史数据" style="margin-bottom: 0;">
+          <el-form-item :label="$t('dashboard.historicalData')" style="margin-bottom: 0;">
             <el-config-provider :locale="zhCn">
               <el-date-picker
                 v-model="dateRange"
                 type="datetimerange"
-                range-separator="至"
-                start-placeholder="开始时间"
-                end-placeholder="结束时间"
+                :range-separator="$t('dashboard.to')"
+                :start-placeholder="$t('dashboard.startTime')"
+                :end-placeholder="$t('dashboard.endTime')"
                 format="YYYY-MM-DD HH:mm:ss"
                 value-format="x"
                 :shortcuts="dateShortcuts"
@@ -44,10 +44,10 @@
 
           <el-form-item style="margin-bottom: 0;">
             <el-button type="primary" @click="loadHistoricalData" :loading="loadingHistorical">
-              载入历史数据
+              {{ $t('dashboard.loadHistorical') }}
             </el-button>
             <el-button v-if="historicalData" @click="clearHistoricalData">
-              显示实时数据
+              {{ $t('dashboard.showRealtime') }}
             </el-button>
           </el-form-item>
         </div>
@@ -57,19 +57,19 @@
       <el-card class="panel panel--stats" shadow="hover">
         <div class="stats">
           <div class="stat">
-            <div class="stat-label">总请求</div>
+            <div class="stat-label">{{ $t('dashboard.totalRequests') }}</div>
             <div class="stat-value">{{ totalReq }}</div>
           </div>
           <div class="stat">
-            <div class="stat-label">成功率</div>
+            <div class="stat-label">{{ $t('dashboard.successRate') }}</div>
             <div class="stat-value">{{ successRate }}</div>
           </div>
           <div class="stat">
-            <div class="stat-label">错误率(5xx+err)</div>
+            <div class="stat-label">{{ $t('dashboard.errorRate') }}</div>
             <div class="stat-value">{{ errorRate }}</div>
           </div>
           <div class="stat">
-            <div class="stat-label">平均延迟(ms)</div>
+            <div class="stat-label">{{ $t('dashboard.avgLatency') }}</div>
             <div class="stat-value">{{ avgLatency }}</div>
           </div>
         </div>
@@ -77,28 +77,28 @@
 
       <el-card class="panel panel--qps" shadow="hover">
         <template #header>
-          <div class="panel-title">请求数趋势（QPS）</div>
+          <div class="panel-title">{{ $t('dashboard.qpsTrend') }}</div>
         </template>
         <v-chart v-if="isActive" :option="qpsOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel panel--status" shadow="hover">
         <template #header>
-          <div class="panel-title">状态码分布</div>
+          <div class="panel-title">{{ $t('dashboard.statusDistribution') }}</div>
         </template>
         <v-chart v-if="isActive" :option="statusOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel panel--latency" shadow="hover">
         <template #header>
-          <div class="panel-title">延迟趋势（ms）</div>
+          <div class="panel-title">{{ $t('dashboard.latencyTrend') }}</div>
         </template>
         <v-chart v-if="isActive" :option="latencyOption" class="chart" autoresize />
       </el-card>
 
       <el-card class="panel panel--percentile" shadow="hover">
         <template #header>
-          <div class="panel-title">P50 / P95 / P99 延迟（ms）</div>
+          <div class="panel-title">{{ $t('dashboard.percentile') }}</div>
         </template>
         <v-chart v-if="isActive" :option="pOption" class="chart" autoresize />
       </el-card>
@@ -227,6 +227,11 @@ import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import { EventsOn, EventsOff } from '../api'
 import { GetListenAddrs, GetMetrics, QueryHistoricalMetrics, GetDashboardStats, GetConfig } from '../api'
 import type { EChartsOption } from 'echarts'
+import { useI18n } from 'vue-i18n'
+import { useDateShortcuts } from '../composables/useDateShortcuts'
+
+const { t } = useI18n()
+const { dateShortcuts } = useDateShortcuts()
 
 const props = defineProps<{ isActive: boolean }>()
 
@@ -286,103 +291,6 @@ const latest = ref<MetricsPayload | null>(null)
 const dateRange = ref<[number, number] | null>(null)
 const loadingHistorical = ref(false)
 const historicalData = ref<MetricsSeries | null>(null)
-
-// 日期快捷选项
-const dateShortcuts = [
-  {
-    text: '今天',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '昨天',
-    value: () => {
-      const now = new Date()
-      const yesterday = new Date(now)
-      yesterday.setDate(yesterday.getDate() - 1)
-      const start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0)
-      const end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '最近7天',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now)
-      start.setDate(start.getDate() - 6)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(now)
-      end.setHours(23, 59, 59, 999)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '最近30天',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now)
-      start.setDate(start.getDate() - 29)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(now)
-      end.setHours(23, 59, 59, 999)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '本月',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '上一月',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0)
-      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '最近半年',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now)
-      start.setMonth(start.getMonth() - 6)
-      start.setDate(1)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(now)
-      end.setHours(23, 59, 59, 999)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '去年',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0)
-      const end = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  },
-  {
-    text: '今年',
-    value: () => {
-      const now = new Date()
-      const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0)
-      const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
-      return [start.getTime(), end.getTime()]
-    }
-  }
-]
 
 const maxPoints = 1200
 

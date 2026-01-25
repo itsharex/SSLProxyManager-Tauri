@@ -1,27 +1,27 @@
 <template>
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
-      <h3>关于</h3>
+      <h3>{{ $t('about.title') }}</h3>
     </template>
 
     <div class="about-content">
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="产品名称">SSLProxyManager</el-descriptions-item>
-        <el-descriptions-item label="当前版本">{{ version || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="作者">
+        <el-descriptions-item :label="$t('about.productName')">SSLProxyManager</el-descriptions-item>
+        <el-descriptions-item :label="$t('about.currentVersion')">{{ version || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('about.author')">
           <el-link type="primary" @click.prevent="handleOpenURL(authorUrl)">
             {{ authorName }}
           </el-link>
         </el-descriptions-item>
-        <el-descriptions-item label="仓库地址">
+        <el-descriptions-item :label="$t('about.repository')">
           <el-link type="primary" @click.prevent="handleOpenURL(repoUrl)">
             {{ repoUrl }}
           </el-link>
         </el-descriptions-item>
-        <el-descriptions-item label="版权">© 2026</el-descriptions-item>
-        <el-descriptions-item label="使用条款">
+        <el-descriptions-item :label="$t('about.copyright')">© 2026</el-descriptions-item>
+        <el-descriptions-item :label="$t('about.terms')">
           <el-link type="primary" @click.prevent="handleShowTerms">
-            查看使用条款与免责声明
+            {{ $t('about.viewTerms') }}
           </el-link>
         </el-descriptions-item>
       </el-descriptions>
@@ -29,26 +29,26 @@
       <el-divider />
 
       <el-form :model="updateForm" label-width="180px">
-        <el-form-item label="启用更新检查">
+        <el-form-item :label="$t('about.updateCheck')">
           <el-switch v-model="updateForm.enabled" />
         </el-form-item>
 
 
-        <el-form-item v-if="updateForm.enabled" label="启动后自动检查">
+        <el-form-item v-if="updateForm.enabled" :label="$t('about.autoCheckOnStart')">
           <el-switch v-model="updateForm.auto_check" />
         </el-form-item>
 
-        <el-form-item v-if="updateForm.enabled" label="超时(毫秒)">
+        <el-form-item v-if="updateForm.enabled" :label="$t('about.timeout')">
           <el-input-number v-model="updateForm.timeout_ms" :min="1000" :max="60000" />
         </el-form-item>
 
-        <el-form-item v-if="updateForm.enabled" label="忽略预发布版本">
+        <el-form-item v-if="updateForm.enabled" :label="$t('about.ignorePrerelease')">
           <el-switch v-model="updateForm.ignore_prerelease" />
         </el-form-item>
 
         <el-form-item>
           <el-button type="primary" @click="handleCheckUpdate" :loading="checking">
-            检查新版本
+            {{ $t('about.checkUpdate') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -62,17 +62,17 @@
       >
         <template #default>
           <div v-if="checkResult.update_info">
-            <div style="margin-bottom: 6px;"><strong>最新版本：</strong>{{ checkResult.update_info.latest_version }}</div>
+            <div style="margin-bottom: 6px;"><strong>{{ $t('about.latestVersion') }}</strong>{{ checkResult.update_info.latest_version }}</div>
             <div style="margin-bottom: 6px;" v-if="checkResult.update_info.release_notes">
-              <strong>更新说明：</strong>{{ checkResult.update_info.release_notes }}
+              <strong>{{ $t('about.releaseNotes') }}</strong>{{ checkResult.update_info.release_notes }}
             </div>
             <div v-if="checkResult.has_update && checkResult.update_info.download_url">
-              <strong>下载地址：</strong>
+              <strong>{{ $t('about.downloadUrl') }}</strong>
               <el-link type="primary" @click.prevent="handleOpenDownload(checkResult.update_info.download_url)">
-                打开下载链接
+                {{ $t('about.openDownloadLink') }}
               </el-link>
               <el-link style="margin-left: 10px;" @click.prevent="handleCopyDownload(checkResult.update_info.download_url)">
-                复制下载链接
+                {{ $t('about.copyDownloadLink') }}
               </el-link>
             </div>
           </div>
@@ -82,12 +82,12 @@
       <el-divider />
 
       <el-form label-width="180px">
-        <el-form-item label="使用条款">
+        <el-form-item :label="$t('about.terms')">
           <el-button type="warning" @click="handleResetTerms" :loading="resettingTerms">
-            重置条款接受状态
+            {{ $t('about.resetTerms') }}
           </el-button>
           <el-text type="info" size="small" class="mini-hint" style="margin-left: 12px;">
-            重置后，下次启动时将重新显示使用条款对话框
+            {{ $t('about.resetTermsHint') }}
           </el-text>
         </el-form-item>
       </el-form>
@@ -103,6 +103,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { GetConfig, GetVersion, CheckUpdate, OpenURL, ResetTermsAccepted } from '../api'
 import TermsDialog from './TermsDialog.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const authorName = 'fhy'
 const authorUrl = 'https://github.com/userfhy'
@@ -124,9 +127,9 @@ const updateForm = ref({
 
 const resultTitle = computed(() => {
   if (!checkResult.value) return ''
-  if (checkResult.value.error) return `检查失败：${checkResult.value.error}`
-  if (checkResult.value.has_update) return '发现新版本'
-  return '当前已是最新版本'
+  if (checkResult.value.error) return t('about.checkFailed', { error: checkResult.value.error })
+  if (checkResult.value.has_update) return t('about.newVersionFound')
+  return t('about.currentLatest')
 })
 
 const loadInfo = async () => {
@@ -155,7 +158,7 @@ const opening = ref(false)
 const handleOpenURL = async (url: string) => {
   const u = (url || '').trim()
   if (!u) {
-    ElMessage.warning('链接为空')
+    ElMessage.warning(t('about.linkEmpty'))
     return
   }
 
@@ -168,7 +171,7 @@ const handleOpenURL = async (url: string) => {
     await OpenURL(u)
   } catch (e: any) {
     console.error('打开链接失败:', e)
-    ElMessage.error('打开链接失败，请手动复制到浏览器打开')
+    ElMessage.error(t('about.openLinkFailed'))
   } finally {
     // 防止短时间内连续点击触发系统 shell 多次启动
     setTimeout(() => {
@@ -213,21 +216,21 @@ const copyToClipboard = async (text: string) => {
 const handleCopyDownload = async (url: string) => {
   const u = (url || '').trim()
   if (!u) {
-    ElMessage.warning('下载链接为空')
+    ElMessage.warning(t('about.downloadLinkEmpty'))
     return
   }
 
   const ok = await copyToClipboard(u)
   if (ok) {
-    ElMessage.success('已复制下载链接')
+    ElMessage.success(t('about.copySuccess'))
   } else {
-    ElMessage.error('复制失败，请手动复制')
+    ElMessage.error(t('about.copyFailed'))
   }
 }
 
 const handleCheckUpdate = async () => {
   if (!updateForm.value.enabled) {
-    ElMessage.warning('请先启用更新检查')
+    ElMessage.warning(t('about.enableUpdateCheckFirst'))
     return
   }
 
@@ -237,7 +240,7 @@ const handleCheckUpdate = async () => {
     const res = await CheckUpdate()
     checkResult.value = res
   } catch (e: any) {
-    ElMessage.error(`检查失败: ${e?.message || String(e)}`)
+    ElMessage.error(t('about.checkFailed', { error: e?.message || String(e) }))
   } finally {
     checking.value = false
   }
@@ -253,11 +256,11 @@ const handleTermsDialogClose = () => {
 
 const handleResetTerms = () => {
   ElMessageBox.confirm(
-    '确定要重置条款接受状态吗？\n\n重置后，应用将自动重启并重新显示使用条款对话框。',
-    '确认重置',
+    t('about.resetTermsConfirm'),
+    t('about.resetTermsTitle'),
     {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     }
   )
@@ -268,9 +271,9 @@ const handleResetTerms = () => {
         await ResetTermsAccepted()
         // 注意：relaunch() 会重启应用，所以下面的代码不会执行
         // 但为了代码完整性，保留这些行
-        ElMessage.success('已重置条款接受状态，应用将重启')
+        ElMessage.success(t('about.resetTermsSuccess'))
       } catch (e: any) {
-        ElMessage.error(`重置失败: ${e?.message || String(e)}`)
+        ElMessage.error(t('about.resetTermsFailed', { error: e?.message || String(e) }))
         resettingTerms.value = false
       }
     })
@@ -314,7 +317,6 @@ watch(
 
 .config-page :deep(.el-card__body) {
   padding: 24px;
-  max-width: 800px;
 }
 
 .config-page h3 {

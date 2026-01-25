@@ -2,10 +2,10 @@
   <el-card class="log-page" shadow="never">
     <template #header>
       <div class="log-header">
-        <h3 class="log-title">实时访问日志</h3>
+        <h3 class="log-title">{{ $t('logViewer.title') }}</h3>
         <div class="log-actions">
           <el-text type="info" size="small" class="log-count">
-            共 {{ totalLogCount }} 条（显示最近 {{ displayLogs.length }} 条）
+            {{ $t('logViewer.totalLogs', { total: totalLogCount, display: displayLogs.length }) }}
           </el-text>
           <el-button 
             v-if="!realtimeEnabled"
@@ -13,7 +13,7 @@
             type="primary"
             size="small"
           >
-            刷新
+            {{ $t('logViewer.refresh') }}
           </el-button>
           <el-button 
             @click="clearLogs" 
@@ -21,7 +21,7 @@
             size="small"
             :disabled="displayLogs.length === 0"
           >
-            清除日志
+            {{ $t('logViewer.clearLogs') }}
           </el-button>
         </div>
       </div>
@@ -34,7 +34,7 @@
       >
         {{ line }}
       </div>
-      <el-empty v-if="displayLogs.length === 0" description="暂无日志，启动服务后显示..." />
+      <el-empty v-if="displayLogs.length === 0" :description="$t('logViewer.noLogs')" />
     </div>
   </el-card>
 </template>
@@ -42,6 +42,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { ClearLogs, EventsOn, GetConfig, GetLogs } from '../api'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 // 最大显示的日志条数（前端限制，只保留最近3000条以节省内存）
 const MAX_DISPLAY_LOGS = 3000

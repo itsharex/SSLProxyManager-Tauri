@@ -3,94 +3,100 @@
   <el-card class="config-card config-page" shadow="hover">
     <template #header>
       <div class="header-row">
-        <h3>基础配置</h3>
-        <el-button type="warning" size="small" plain @click="resetToDefaults">恢复默认设置</el-button>
+        <h3>{{ $t('baseConfig.title') }}</h3>
+        <div class="header-actions">
+          <el-select v-model="currentLocale" @change="handleLocaleChange" size="small" style="width: 120px; margin-right: 12px;">
+            <el-option label="中文" value="zh-CN" />
+            <el-option label="English" value="en-US" />
+          </el-select>
+          <el-button type="warning" size="small" plain @click="resetToDefaults">{{ $t('baseConfig.restoreDefaults') }}</el-button>
+        </div>
       </div>
     </template>
     <el-form label-width="190px">
-      <el-form-item label="开机自启">
+      <el-form-item :label="$t('baseConfig.autoStart')">
         <el-switch v-model="autoStart" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          启用后，应用将在您登录系统时自动启动。
+          {{ $t('baseConfig.autoStartHint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item label="显示实时日志">
+      <el-form-item :label="$t('baseConfig.showRealtimeLogs')">
         <el-switch v-model="showRealtimeLogs" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          关闭后不会实时推送日志到界面（仍会在后台缓存，且可手动查看）。
+          {{ $t('baseConfig.showRealtimeLogsHint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item v-if="showRealtimeLogs" label="仅显示错误日志">
+      <el-form-item v-if="showRealtimeLogs" :label="$t('baseConfig.realtimeLogsOnlyErrors')">
         <el-switch v-model="realtimeLogsOnlyErrors" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          开启后仅实时推送错误相关日志，降低高并发下的 UI/日志开销。
+          {{ $t('baseConfig.realtimeLogsOnlyErrorsHint') }}
         </el-text>
       </el-form-item>
 
-        <el-form-item label="代理流式转发">
-        <el-switch v-model="streamProxy" active-text="开启" inactive-text="关闭" />
+        <el-form-item :label="$t('baseConfig.streamProxy')">
+        <el-switch v-model="streamProxy" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          关闭后，请求/响应将在内存中整块读取，可能占用更多内存。
+          {{ $t('baseConfig.streamProxyHint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item v-if="!streamProxy" label="最大Body大小(MB)">
+      <el-form-item v-if="!streamProxy" :label="$t('baseConfig.maxBodySizeMB')">
         <el-input-number v-model="maxBodySizeMB" :min="1" :max="1024" :step="1" controls-position="right" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          仅在关闭流式转发时生效；超过该大小将拒绝读取。
+          {{ $t('baseConfig.maxBodySizeMBHint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item v-if="!streamProxy" label="最大响应Body大小(MB)">
+      <el-form-item v-if="!streamProxy" :label="$t('baseConfig.maxResponseBodySizeMB')">
         <el-input-number v-model="maxResponseBodySizeMB" :min="1" :max="1024" :step="1" controls-position="right" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          仅在关闭流式转发时生效；超过该大小将拒绝读取。
+          {{ $t('baseConfig.maxResponseBodySizeMBHint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item label="上游连接超时(ms)">
+      <el-form-item :label="$t('baseConfig.upstreamConnectTimeoutMs')">
         <el-input-number v-model="upstreamConnectTimeoutMs" :min="100" :max="600000" :step="100" controls-position="right" />
       </el-form-item>
 
-      <el-form-item label="上游读取超时(ms)">
+      <el-form-item :label="$t('baseConfig.upstreamReadTimeoutMs')">
         <el-input-number v-model="upstreamReadTimeoutMs" :min="100" :max="600000" :step="100" controls-position="right" />
       </el-form-item>
 
-      <el-form-item label="上游连接池最大空闲">
+      <el-form-item :label="$t('baseConfig.upstreamPoolMaxIdle')">
         <el-input-number v-model="upstreamPoolMaxIdle" :min="0" :max="1024" :step="1" controls-position="right" />
       </el-form-item>
 
-      <el-form-item label="HTTP/2">
-        <el-switch v-model="enableHttp2" active-text="开启" inactive-text="关闭" />
+      <el-form-item :label="$t('baseConfig.enableHttp2')">
+        <el-switch v-model="enableHttp2" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          关闭后，上游请求将强制使用 HTTP/1.1。
+          {{ $t('baseConfig.enableHttp2Hint') }}
         </el-text>
       </el-form-item>
 
-      <el-form-item label="上游空闲连接超时(秒)">
+      <el-form-item :label="$t('baseConfig.upstreamPoolIdleTimeoutSec')">
         <el-input-number v-model="upstreamPoolIdleTimeoutSec" :min="0" :max="3600" :step="1" controls-position="right" />
       </el-form-item>
 
       <el-divider />
 
-      <el-form-item label="响应压缩">
-        <el-switch v-model="compressionEnabled" active-text="开启" inactive-text="关闭" />
+      <el-form-item :label="$t('baseConfig.compressionEnabled')">
+        <el-switch v-model="compressionEnabled" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
         <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-          启用后，将对符合条件的响应进行压缩，减少传输数据量。
+          {{ $t('baseConfig.compressionEnabledHint') }}
         </el-text>
       </el-form-item>
 
       <template v-if="compressionEnabled">
-        <el-form-item label="Gzip 压缩">
-          <el-switch v-model="compressionGzip" active-text="开启" inactive-text="关闭" />
+        <el-form-item :label="$t('baseConfig.compressionGzip')">
+          <el-switch v-model="compressionGzip" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
           <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-            启用 Gzip 压缩算法。
+            {{ $t('baseConfig.compressionGzipHint') }}
           </el-text>
         </el-form-item>
 
-        <el-form-item v-if="compressionGzip" label="Gzip 压缩等级">
+        <el-form-item v-if="compressionGzip" :label="$t('baseConfig.compressionGzipLevel')">
           <el-slider
             v-model="compressionGzipLevel"
             :min="1"
@@ -102,18 +108,18 @@
             style="width: 300px; margin-right: 12px;"
           />
           <el-text type="info" size="small" class="mini-hint">
-            等级越高压缩率越大，但 CPU 消耗也越大。推荐值：6（平衡）。
+            {{ $t('baseConfig.compressionGzipLevelHint') }}
           </el-text>
         </el-form-item>
 
-        <el-form-item label="Brotli 压缩">
-          <el-switch v-model="compressionBrotli" active-text="开启" inactive-text="关闭" />
+        <el-form-item :label="$t('baseConfig.compressionBrotli')">
+          <el-switch v-model="compressionBrotli" :active-text="$t('common.on')" :inactive-text="$t('common.off')" />
           <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
-            启用 Brotli 压缩算法（压缩率更高，但 CPU 消耗更大）。
+            {{ $t('baseConfig.compressionBrotliHint') }}
           </el-text>
         </el-form-item>
 
-        <el-form-item v-if="compressionBrotli" label="Brotli 压缩等级">
+        <el-form-item v-if="compressionBrotli" :label="$t('baseConfig.compressionBrotliLevel')">
           <el-slider
             v-model="compressionBrotliLevel"
             :min="0"
@@ -125,7 +131,7 @@
             style="width: 300px; margin-right: 12px;"
           />
           <el-text type="info" size="small" class="mini-hint">
-            等级越高压缩率越大，但 CPU 消耗也越大。推荐值：6（平衡）。
+            {{ $t('baseConfig.compressionBrotliLevelHint') }}
           </el-text>
         </el-form-item>
       </template>
@@ -135,18 +141,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { GetConfig } from '../api'
+import { useI18n } from 'vue-i18n'
+
+const { t, locale } = useI18n()
+
+// 当前语言选择
+const currentLocale = computed({
+  get: () => locale.value,
+  set: (val) => {
+    locale.value = val
+    localStorage.setItem('locale', val)
+  }
+})
+
+// 处理语言切换
+const handleLocaleChange = (val: string) => {
+  currentLocale.value = val
+}
 
 const resetToDefaults = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要恢复基础配置默认值吗？\n\n此操作只会重置当前页面的输入项，不会立即保存。',
-      '恢复默认设置',
+      t('baseConfig.restoreConfirm'),
+      t('baseConfig.restoreDefaults'),
       {
-        confirmButtonText: '恢复',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.restore'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
@@ -180,7 +203,7 @@ const resetToDefaults = async () => {
     // 触发实时日志事件
     window.dispatchEvent(new CustomEvent('toggle-realtime-logs', { detail: showRealtimeLogs.value }))
 
-    ElMessage.success('已恢复所有默认值（未保存）')
+    ElMessage.success(t('baseConfig.restoreSuccess'))
   } catch {
     // 用户取消
   }
@@ -294,6 +317,12 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
