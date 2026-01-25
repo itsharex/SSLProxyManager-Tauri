@@ -41,6 +41,7 @@ static SKIP_HEADERS: once_cell::sync::Lazy<HashSet<HeaderName>> = once_cell::syn
 use tauri::Emitter;
 use tower::util::ServiceExt;
 use tower_http::services::ServeDir;
+use tower_http::compression::{CompressionLayer, CompressionLevel};
 use tracing::{error, info};
 
 static IS_RUNNING: RwLock<bool> = RwLock::new(false);
@@ -455,7 +456,29 @@ async fn start_rule_server(
     };
 
     let router = Router::new().route("/healthz", any(healthz));
-    let app = router.fallback(any(proxy_handler)).with_state(state);
+    let mut app = router.fallback(any(proxy_handler)).with_state(state);
+    
+    // 应用压缩中间件（如果启用）
+    if cfg.compression_enabled {
+        // CompressionLayer 会根据客户端的 Accept-Encoding 自动选择最佳压缩算法
+        // 如果同时启用了 gzip 和 brotli，brotli 会优先（如果客户端支持）
+        let mut compression_layer = CompressionLayer::new();
+        
+        if cfg.compression_gzip {
+            // Gzip 压缩等级范围：1-9，默认 6
+            let gzip_level = cfg.compression_gzip_level.clamp(1, 9) as i32;
+            compression_layer = compression_layer.gzip(true).quality(CompressionLevel::Precise(gzip_level));
+        }
+        
+        if cfg.compression_brotli {
+            // Brotli 压缩等级范围：0-11，默认 6
+            let brotli_level = cfg.compression_brotli_level.clamp(0, 11) as i32;
+            compression_layer = compression_layer.br(true).quality(CompressionLevel::Precise(brotli_level));
+        }
+        
+        app = app.layer(compression_layer);
+    }
+    
     let app = app.into_make_service_with_connect_info::<SocketAddr>();
 
     send_log(format!("监听地址: {} -> {}", rule.listen_addr, addr));

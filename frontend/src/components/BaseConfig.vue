@@ -73,6 +73,63 @@
         <el-input-number v-model="upstreamPoolIdleTimeoutSec" :min="0" :max="3600" :step="1" controls-position="right" />
       </el-form-item>
 
+      <el-divider />
+
+      <el-form-item label="响应压缩">
+        <el-switch v-model="compressionEnabled" active-text="开启" inactive-text="关闭" />
+        <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
+          启用后，将对符合条件的响应进行压缩，减少传输数据量。
+        </el-text>
+      </el-form-item>
+
+      <template v-if="compressionEnabled">
+        <el-form-item label="Gzip 压缩">
+          <el-switch v-model="compressionGzip" active-text="开启" inactive-text="关闭" />
+          <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
+            启用 Gzip 压缩算法。
+          </el-text>
+        </el-form-item>
+
+        <el-form-item v-if="compressionGzip" label="Gzip 压缩等级">
+          <el-slider
+            v-model="compressionGzipLevel"
+            :min="1"
+            :max="9"
+            :step="1"
+            show-stops
+            show-input
+            :show-input-controls="false"
+            style="width: 300px; margin-right: 12px;"
+          />
+          <el-text type="info" size="small" class="mini-hint">
+            等级越高压缩率越大，但 CPU 消耗也越大。推荐值：6（平衡）。
+          </el-text>
+        </el-form-item>
+
+        <el-form-item label="Brotli 压缩">
+          <el-switch v-model="compressionBrotli" active-text="开启" inactive-text="关闭" />
+          <el-text type="info" size="small" class="mini-hint" style="margin-left: 10px;">
+            启用 Brotli 压缩算法（压缩率更高，但 CPU 消耗更大）。
+          </el-text>
+        </el-form-item>
+
+        <el-form-item v-if="compressionBrotli" label="Brotli 压缩等级">
+          <el-slider
+            v-model="compressionBrotliLevel"
+            :min="0"
+            :max="11"
+            :step="1"
+            show-stops
+            show-input
+            :show-input-controls="false"
+            style="width: 300px; margin-right: 12px;"
+          />
+          <el-text type="info" size="small" class="mini-hint">
+            等级越高压缩率越大，但 CPU 消耗也越大。推荐值：6（平衡）。
+          </el-text>
+        </el-form-item>
+      </template>
+
     </el-form>
   </el-card>
 </template>
@@ -109,6 +166,12 @@ const resetToDefaults = async () => {
     upstreamPoolMaxIdle.value = DEFAULT_POOL_MAX_IDLE
     upstreamPoolIdleTimeoutSec.value = DEFAULT_POOL_IDLE_TIMEOUT_SEC
 
+    compressionEnabled.value = DEFAULT_COMPRESSION_ENABLED
+    compressionGzip.value = DEFAULT_COMPRESSION_GZIP
+    compressionBrotli.value = DEFAULT_COMPRESSION_BROTLI
+    compressionGzipLevel.value = DEFAULT_COMPRESSION_GZIP_LEVEL
+    compressionBrotliLevel.value = DEFAULT_COMPRESSION_BROTLI_LEVEL
+
     window.dispatchEvent(new CustomEvent('toggle-realtime-logs', { detail: showRealtimeLogs.value }))
 
     ElMessage.success('已恢复默认值（未保存）')
@@ -124,6 +187,12 @@ const DEFAULT_POOL_IDLE_TIMEOUT_SEC = 60
 const DEFAULT_MAX_BODY_SIZE_MB = 10
 const DEFAULT_MAX_RESPONSE_BODY_SIZE_MB = 10
 const DEFAULT_ENABLE_HTTP2 = true
+const DEFAULT_COMPRESSION_ENABLED = false
+const DEFAULT_COMPRESSION_GZIP = true
+const DEFAULT_COMPRESSION_BROTLI = true
+const DEFAULT_COMPRESSION_MIN_LENGTH = 1024
+const DEFAULT_COMPRESSION_GZIP_LEVEL = 6
+const DEFAULT_COMPRESSION_BROTLI_LEVEL = 6
 
 const autoStart = ref(false)
 const showRealtimeLogs = ref(true)
@@ -136,6 +205,11 @@ const upstreamConnectTimeoutMs = ref(DEFAULT_CONNECT_TIMEOUT_MS)
 const upstreamReadTimeoutMs = ref(DEFAULT_READ_TIMEOUT_MS)
 const upstreamPoolMaxIdle = ref(DEFAULT_POOL_MAX_IDLE)
 const upstreamPoolIdleTimeoutSec = ref(DEFAULT_POOL_IDLE_TIMEOUT_SEC)
+const compressionEnabled = ref(DEFAULT_COMPRESSION_ENABLED)
+const compressionGzip = ref(DEFAULT_COMPRESSION_GZIP)
+const compressionBrotli = ref(DEFAULT_COMPRESSION_BROTLI)
+const compressionGzipLevel = ref(DEFAULT_COMPRESSION_GZIP_LEVEL)
+const compressionBrotliLevel = ref(DEFAULT_COMPRESSION_BROTLI_LEVEL)
 
 onMounted(async () => {
   try {
@@ -151,6 +225,11 @@ onMounted(async () => {
     upstreamReadTimeoutMs.value = configData.upstream_read_timeout_ms ?? DEFAULT_READ_TIMEOUT_MS
     upstreamPoolMaxIdle.value = configData.upstream_pool_max_idle ?? DEFAULT_POOL_MAX_IDLE
     upstreamPoolIdleTimeoutSec.value = configData.upstream_pool_idle_timeout_sec ?? DEFAULT_POOL_IDLE_TIMEOUT_SEC
+    compressionEnabled.value = configData.compression_enabled ?? DEFAULT_COMPRESSION_ENABLED
+    compressionGzip.value = configData.compression_gzip ?? DEFAULT_COMPRESSION_GZIP
+    compressionBrotli.value = configData.compression_brotli ?? DEFAULT_COMPRESSION_BROTLI
+    compressionGzipLevel.value = configData.compression_gzip_level ?? DEFAULT_COMPRESSION_GZIP_LEVEL
+    compressionBrotliLevel.value = configData.compression_brotli_level ?? DEFAULT_COMPRESSION_BROTLI_LEVEL
   } catch {
     // ignore
   }
@@ -176,6 +255,12 @@ const getConfig = () => {
     upstream_read_timeout_ms: Number(upstreamReadTimeoutMs.value),
     upstream_pool_max_idle: Number(upstreamPoolMaxIdle.value),
     upstream_pool_idle_timeout_sec: Number(upstreamPoolIdleTimeoutSec.value),
+    compression_enabled: !!compressionEnabled.value,
+    compression_gzip: !!compressionGzip.value,
+    compression_brotli: !!compressionBrotli.value,
+    compression_min_length: DEFAULT_COMPRESSION_MIN_LENGTH,
+    compression_gzip_level: Number(compressionGzipLevel.value),
+    compression_brotli_level: Number(compressionBrotliLevel.value),
   }
 }
 

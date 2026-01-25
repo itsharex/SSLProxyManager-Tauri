@@ -112,19 +112,20 @@
 
       <el-card class="panel panel--errors" shadow="hover">
         <template #header>
-          <div class="panel-title">Top 错误（Route / Upstream）</div>
+          <div class="panel-title">Tops（Route / Upstream）</div>
         </template>
         <div class="tables">
+
           <el-card class="table" shadow="never">
             <template #header>
-              <div class="table-title">Top Route 错误</div>
+              <div class="table-title">Top Client IPs</div>
             </template>
             <div class="rows">
-              <div v-for="(it, idx) in topRouteErr" :key="idx" class="row">
-                <div class="k">{{ it.key }}</div>
-                <div class="v">{{ it.value }}</div>
+              <div v-for="(it, idx) in topClientIps" :key="idx" class="row">
+                <div class="k">{{ it.item }}</div>
+                <div class="v">{{ it.count }}</div>
               </div>
-              <el-empty v-if="topRouteErr.length===0" description="暂无" :image-size="60" />
+              <el-empty v-if="topClientIps.length===0" description="暂无" :image-size="60" />
             </div>
           </el-card>
 
@@ -143,14 +144,14 @@
 
           <el-card class="table" shadow="never">
             <template #header>
-              <div class="table-title">Top Client IPs</div>
+              <div class="table-title">Top Route(错误)</div>
             </template>
             <div class="rows">
-              <div v-for="(it, idx) in topClientIps" :key="idx" class="row">
-                <div class="k">{{ it.item }}</div>
-                <div class="v">{{ it.count }}</div>
+              <div v-for="(it, idx) in topRouteErr" :key="idx" class="row">
+                <div class="k">{{ it.key }}</div>
+                <div class="v">{{ it.value }}</div>
               </div>
-              <el-empty v-if="topClientIps.length===0" description="暂无" :image-size="60" />
+              <el-empty v-if="topRouteErr.length===0" description="暂无" :image-size="60" />
             </div>
           </el-card>
 

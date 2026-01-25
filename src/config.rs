@@ -59,6 +59,30 @@ fn default_follow_redirects() -> bool {
     false
 }
 
+fn default_compression_enabled() -> bool {
+    false
+}
+
+fn default_compression_gzip() -> bool {
+    true
+}
+
+fn default_compression_brotli() -> bool {
+    true
+}
+
+fn default_compression_min_length() -> usize {
+    1024
+}
+
+fn default_compression_gzip_level() -> u32 {
+    6
+}
+
+fn default_compression_brotli_level() -> u32 {
+    6
+}
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -104,6 +128,15 @@ pub struct Route {
 
     #[serde(default = "default_follow_redirects")]
     pub follow_redirects: bool,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compression_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compression_gzip: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compression_brotli: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compression_min_length: Option<usize>,
 
     pub upstreams: Vec<Upstream>,
 }
@@ -275,6 +308,19 @@ pub struct Config {
     #[serde(default = "default_enable_http2")]
     pub enable_http2: bool,
 
+    #[serde(default = "default_compression_enabled")]
+    pub compression_enabled: bool,
+    #[serde(default = "default_compression_gzip")]
+    pub compression_gzip: bool,
+    #[serde(default = "default_compression_brotli")]
+    pub compression_brotli: bool,
+    #[serde(default = "default_compression_min_length")]
+    pub compression_min_length: usize,
+    #[serde(default = "default_compression_gzip_level")]
+    pub compression_gzip_level: u32,
+    #[serde(default = "default_compression_brotli_level")]
+    pub compression_brotli_level: u32,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_storage: Option<MetricsStorage>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -303,6 +349,12 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| {
         upstream_pool_max_idle: default_upstream_pool_max_idle(),
         upstream_pool_idle_timeout_sec: default_upstream_pool_idle_timeout_sec(),
         enable_http2: default_enable_http2(),
+        compression_enabled: default_compression_enabled(),
+        compression_gzip: default_compression_gzip(),
+        compression_brotli: default_compression_brotli(),
+        compression_min_length: default_compression_min_length(),
+        compression_gzip_level: default_compression_gzip_level(),
+        compression_brotli_level: default_compression_brotli_level(),
         metrics_storage: None,
         update: None,
     })
@@ -330,6 +382,12 @@ fn default_config() -> Config {
         upstream_pool_max_idle: default_upstream_pool_max_idle(),
         upstream_pool_idle_timeout_sec: default_upstream_pool_idle_timeout_sec(),
         enable_http2: default_enable_http2(),
+        compression_enabled: default_compression_enabled(),
+        compression_gzip: default_compression_gzip(),
+        compression_brotli: default_compression_brotli(),
+        compression_min_length: default_compression_min_length(),
+        compression_gzip_level: default_compression_gzip_level(),
+        compression_brotli_level: default_compression_brotli_level(),
         metrics_storage: None,
         update: None,
     }
