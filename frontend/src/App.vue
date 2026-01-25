@@ -7,6 +7,15 @@
         <h1>{{ $t('app.title') }}</h1>
         <div class="top-bar-right">
           <div class="theme-control">
+            <el-select 
+              v-model="currentLocale" 
+              @change="handleLocaleChange" 
+              size="small" 
+              style="width: 120px; margin-right: 12px;"
+            >
+              <el-option :label="$t('common.chinese')" value="zh-CN" />
+              <el-option :label="$t('common.english')" value="en-US" />
+            </el-select>
             <el-switch
               v-model="autoThemeEnabled"
               @change="handleAutoThemeChange"
@@ -124,7 +133,7 @@ import { GetConfig, SaveConfig } from './api'
 import { GetTermsAccepted } from './api'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const activeTab = ref<'base' | 'config' | 'ws' | 'stream' | 'logs' | 'dashboard' | 'access' | 'storage' | 'requestLogs' | 'about'>('config')
 const status = ref('stopped')
@@ -185,6 +194,20 @@ const stopRuntimeTimer = () => {
     clearInterval(runtimeTimer)
     runtimeTimer = null
   }
+}
+
+// 语言切换
+const currentLocale = computed({
+  get: () => locale.value,
+  set: (val) => {
+    locale.value = val
+    localStorage.setItem('locale', val)
+  }
+})
+
+// 处理语言切换
+const handleLocaleChange = (val: string) => {
+  currentLocale.value = val
 }
 
 // 全局主题状态
@@ -648,7 +671,7 @@ const initializeAppCore = async () => {
       stopRuntimeTimer()
     } catch (e: any) {
       console.error('处理 server-start-error 事件失败', e)
-      ElMessage.error(`服务启动失败，但前端提示异常: ${e?.message || String(e)}`)
+      ElMessage.error(t('app.serverStartErrorWithException', { error: e?.message || String(e) }))
     }
   });
   

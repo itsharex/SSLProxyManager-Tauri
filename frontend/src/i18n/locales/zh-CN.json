@@ -92,7 +92,8 @@
     "updateAvailable": "发现新版本",
     "newVersion": "发现新版本 {version}\n\n{notes}",
     "downloadUpdate": "下载更新",
-    "later": "稍后再说"
+    "later": "稍后再说",
+    "serverStartErrorWithException": "服务启动失败，但前端提示异常: {error}"
   },
   "sidebar": {
     "expand": "展开侧边栏",
@@ -292,7 +293,13 @@
     "qpsTrend": "请求数趋势（QPS）",
     "statusDistribution": "状态码分布",
     "latencyTrend": "延迟趋势（ms）",
-    "percentile": "延迟百分位数（ms）"
+    "percentile": "延迟百分位数（ms）",
+    "selectDateRange": "请选择日期范围",
+    "startTimeMustBeLess": "开始时间必须小于结束时间",
+    "loadHistoricalSuccess": "历史数据加载成功，共 {count} 个数据点",
+    "noHistoricalData": "未找到历史数据",
+    "loadHistoricalFailed": "加载历史数据失败: {error}",
+    "historicalDataCleared": "已清除历史数据"
   },
   "wsProxy": {
     "title": "WebSocket 反向代理配置",
@@ -311,7 +318,9 @@
     "deleteRoute": "删除路由",
     "pathPrefix": "Path 前缀",
     "upstreamUrl": "上游地址",
-    "addListenRule": "添加 WS 监听规则"
+    "addListenRule": "添加 WS 监听规则",
+    "selectCertFileFailed": "选择证书文件失败: {error}",
+    "selectKeyFileFailed": "选择私钥文件失败: {error}"
   },
   "streamProxy": {
     "title": "Stream 代理配置",
@@ -376,7 +385,21 @@
     "permanentLabel": "永久拉黑",
     "permanentHint": "勾选后，该IP将被永久拉黑",
     "confirm": "确定",
-    "cancel": "取消"
+    "cancel": "取消",
+    "getBlacklistFailed": "获取黑名单失败: {error}",
+    "cacheRefreshed": "缓存已刷新",
+    "refreshCacheFailed": "刷新缓存失败: {error}",
+    "formNotInitialized": "表单未初始化",
+    "dbNotEnabledMessage": "数据库未启用！请先在\"数据持久化\"标签页中启用数据库功能。",
+    "dbNotInitializedMessage": "数据库未初始化！请检查数据库配置和路径。",
+    "checkFormInput": "请检查表单输入",
+    "expiresAtMustBeGreater": "过期时间必须大于当前时间",
+    "blacklistAdded": "黑名单已添加",
+    "addBlacklistFailed": "添加黑名单失败: {error}",
+    "blacklistRemoved": "黑名单已删除",
+    "removeBlacklistFailed": "删除黑名单失败: {error}",
+    "removeBlacklistConfirm": "确定要删除IP \"{ip}\" 的黑名单记录吗？",
+    "removeBlacklistTitle": "确认删除"
   },
   "metricsStorage": {
     "title": "数据持久化",
@@ -451,7 +474,17 @@
     "latency": "延迟(ms)",
     "userAgent": "User-Agent",
     "actions": "操作",
-    "blacklist": "拉黑"
+    "blacklist": "拉黑",
+    "selectTimeRange": "请选择时间范围",
+    "startTimeMustBeLess": "开始时间必须小于结束时间",
+    "searchSuccess": "查询成功，共 {total} 条记录",
+    "noDataFound": "未找到数据",
+    "searchFailed": "查询失败: {error}",
+    "blacklistConfirm": "确定要拉黑IP \"{ip}\" 吗？\n将使用默认设置：永久拉黑",
+    "blacklistTitle": "拉黑IP",
+    "blacklistReason": "从请求记录中拉黑",
+    "blacklistSuccess": "IP {ip} 已添加到黑名单（永久）",
+    "blacklistFailed": "拉黑IP失败: {error}"
   },
   "logViewer": {
     "title": "实时访问日志",

@@ -384,7 +384,7 @@ const refreshBlacklist = async () => {
     blacklist.value = entries || []
   } catch (error: any) {
     console.error('获取黑名单失败:', error)
-    ElMessage.error('获取黑名单失败: ' + (error.message || String(error)))
+    ElMessage.error(t('accessControl.getBlacklistFailed', { error: error.message || String(error) }))
   } finally {
     blacklistLoading.value = false
   }
@@ -395,11 +395,11 @@ const refreshCache = async () => {
   try {
     // @ts-ignore
     await RefreshBlacklistCache()
-    ElMessage.success('缓存已刷新')
+    ElMessage.success(t('accessControl.cacheRefreshed'))
     await refreshBlacklist()
   } catch (error: any) {
     console.error('刷新缓存失败:', error)
-    ElMessage.error('刷新缓存失败: ' + (error.message || String(error)))
+    ElMessage.error(t('accessControl.refreshCacheFailed', { error: error.message || String(error) }))
   } finally {
     refreshingCache.value = false
   }
@@ -407,7 +407,7 @@ const refreshCache = async () => {
 
 const handleAdd = async () => {
   if (!addFormRef.value) {
-    ElMessage.warning('表单未初始化')
+    ElMessage.warning(t('accessControl.formNotInitialized'))
     return
   }
 
@@ -420,7 +420,7 @@ const handleAdd = async () => {
 
   if (!dbStatus.value || !dbStatus.value.enabled) {
     ElMessage.error({
-      message: '数据库未启用！请先在"数据持久化"标签页中启用数据库功能。',
+      message: t('accessControl.dbNotEnabledMessage'),
       duration: 5000,
       showClose: true,
     })
@@ -429,7 +429,7 @@ const handleAdd = async () => {
 
   if (!dbStatus.value.initialized) {
     ElMessage.error({
-      message: '数据库未初始化！请检查数据库配置和路径。',
+      message: t('accessControl.dbNotInitializedMessage'),
       duration: 5000,
       showClose: true,
     })
@@ -439,7 +439,7 @@ const handleAdd = async () => {
   try {
     await addFormRef.value.validate()
   } catch {
-    ElMessage.warning('请检查表单输入')
+    ElMessage.warning(t('accessControl.checkFormInput'))
     return
   }
 
@@ -451,7 +451,7 @@ const handleAdd = async () => {
       const now = Date.now()
       durationSeconds = Math.ceil((ms - now) / 1000)
       if (durationSeconds <= 0) {
-        ElMessage.warning('过期时间必须大于当前时间')
+        ElMessage.warning(t('accessControl.expiresAtMustBeGreater'))
         adding.value = false
         return
       }
@@ -459,7 +459,7 @@ const handleAdd = async () => {
 
     // @ts-ignore
     await AddBlacklistEntry(addForm.value.ip, addForm.value.reason || '', durationSeconds)
-    ElMessage.success('黑名单已添加')
+    ElMessage.success(t('accessControl.blacklistAdded'))
     showAddDialog.value = false
 
     addForm.value = {
@@ -477,7 +477,7 @@ const handleAdd = async () => {
   } catch (error: any) {
     console.error('添加黑名单失败:', error)
     ElMessage.error({
-      message: '添加黑名单失败: ' + (error?.message || String(error)),
+      message: t('accessControl.addBlacklistFailed', { error: error?.message || String(error) }),
       duration: 5000,
       showClose: true,
     })
@@ -489,23 +489,23 @@ const handleAdd = async () => {
 const handleRemove = async (ip: string) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除IP "${ip}" 的黑名单记录吗？`,
-      '确认删除',
+      t('accessControl.removeBlacklistConfirm', { ip }),
+      t('accessControl.removeBlacklistTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
 
     // @ts-ignore
     await RemoveBlacklistEntry(ip)
-    ElMessage.success('黑名单已删除')
+    ElMessage.success(t('accessControl.blacklistRemoved'))
     await refreshBlacklist()
   } catch (error: any) {
     if (error !== 'cancel') {
       console.error('删除黑名单失败:', error)
-      ElMessage.error('删除黑名单失败: ' + (error.message || String(error)))
+      ElMessage.error(t('accessControl.removeBlacklistFailed', { error: error.message || String(error) }))
     }
   }
 }

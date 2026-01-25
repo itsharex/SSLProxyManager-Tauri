@@ -92,7 +92,8 @@
     "updateAvailable": "Update Available",
     "newVersion": "New version {version} found\n\n{notes}",
     "downloadUpdate": "Download Update",
-    "later": "Later"
+    "later": "Later",
+    "serverStartErrorWithException": "Service start failed, but frontend prompt exception: {error}"
   },
   "sidebar": {
     "expand": "Expand Sidebar",
@@ -292,7 +293,13 @@
     "qpsTrend": "Request Trend (QPS)",
     "statusDistribution": "Status Code Distribution",
     "latencyTrend": "Latency Trend (ms)",
-    "percentile": "Latency Percentile (ms)"
+    "percentile": "Latency Percentile (ms)",
+    "selectDateRange": "Please select date range",
+    "startTimeMustBeLess": "Start time must be less than end time",
+    "loadHistoricalSuccess": "Historical data loaded successfully, {count} data points",
+    "noHistoricalData": "No historical data found",
+    "loadHistoricalFailed": "Failed to load historical data: {error}",
+    "historicalDataCleared": "Historical data cleared"
   },
   "wsProxy": {
     "title": "WebSocket Reverse Proxy Configuration",
@@ -311,7 +318,9 @@
     "deleteRoute": "Delete Route",
     "pathPrefix": "Path Prefix",
     "upstreamUrl": "Upstream URL",
-    "addListenRule": "Add WS Listen Rule"
+    "addListenRule": "Add WS Listen Rule",
+    "selectCertFileFailed": "Failed to select certificate file: {error}",
+    "selectKeyFileFailed": "Failed to select private key file: {error}"
   },
   "streamProxy": {
     "title": "Stream Proxy Configuration",
@@ -376,7 +385,21 @@
     "permanentLabel": "Permanent Blacklist",
     "permanentHint": "When checked, this IP will be permanently blacklisted",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "getBlacklistFailed": "Failed to get blacklist: {error}",
+    "cacheRefreshed": "Cache refreshed",
+    "refreshCacheFailed": "Failed to refresh cache: {error}",
+    "formNotInitialized": "Form not initialized",
+    "dbNotEnabledMessage": "Database not enabled! Please enable database functionality in the \"Data Persistence\" tab first.",
+    "dbNotInitializedMessage": "Database not initialized! Please check database configuration and path.",
+    "checkFormInput": "Please check form input",
+    "expiresAtMustBeGreater": "Expiration time must be greater than current time",
+    "blacklistAdded": "Blacklist added",
+    "addBlacklistFailed": "Failed to add blacklist: {error}",
+    "blacklistRemoved": "Blacklist removed",
+    "removeBlacklistFailed": "Failed to remove blacklist: {error}",
+    "removeBlacklistConfirm": "Are you sure you want to remove IP \"{ip}\" from blacklist?",
+    "removeBlacklistTitle": "Confirm Removal"
   },
   "metricsStorage": {
     "title": "Data Persistence",
@@ -451,7 +474,17 @@
     "latency": "Latency(ms)",
     "userAgent": "User-Agent",
     "actions": "Actions",
-    "blacklist": "Blacklist"
+    "blacklist": "Blacklist",
+    "selectTimeRange": "Please select time range",
+    "startTimeMustBeLess": "Start time must be less than end time",
+    "searchSuccess": "Search successful, found {total} records",
+    "noDataFound": "No data found",
+    "searchFailed": "Search failed: {error}",
+    "blacklistConfirm": "Are you sure you want to blacklist IP \"{ip}\"?\nDefault settings will be used: permanent blacklist",
+    "blacklistTitle": "Blacklist IP",
+    "blacklistReason": "Blacklisted from request logs",
+    "blacklistSuccess": "IP {ip} has been added to blacklist (permanent)",
+    "blacklistFailed": "Failed to blacklist IP: {error}"
   },
   "logViewer": {
     "title": "Realtime Access Logs",

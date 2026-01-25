@@ -211,13 +211,13 @@ const getStatusTagType = (statusCode: number) => {
 
 const handleSearch = async () => {
   if (!dateRange.value || dateRange.value.length !== 2) {
-    ElMessage.warning('请选择时间范围')
+    ElMessage.warning(t('requestLogs.selectTimeRange'))
     return
   }
 
   const [startTime, endTime] = dateRange.value
   if (startTime >= endTime) {
-    ElMessage.warning('开始时间必须小于结束时间')
+    ElMessage.warning(t('requestLogs.startTimeMustBeLess'))
     return
   }
 
@@ -260,15 +260,15 @@ const handleSearch = async () => {
       }))
       pagination.value.total = response.total || 0
       pagination.value.totalPage = response.total_page ?? response.totalPage ?? 0
-      ElMessage.success(`查询成功，共 ${response.total} 条记录`)
+      ElMessage.success(t('requestLogs.searchSuccess', { total: response.total }))
     } else {
       logs.value = []
       pagination.value.total = 0
-      ElMessage.warning('未找到数据')
+      ElMessage.warning(t('requestLogs.noDataFound'))
     }
   } catch (error: any) {
     console.error('查询失败:', error)
-    ElMessage.error('查询失败: ' + (error.message || String(error)))
+    ElMessage.error(t('requestLogs.searchFailed', { error: error.message || String(error) }))
     logs.value = []
     pagination.value.total = 0
   } finally {
@@ -336,22 +336,22 @@ const handleSortChange = ({ prop, order }: { prop?: string; order?: string }) =>
 const handleBlacklistIP = async (ip: string) => {
   try {
     await ElMessageBox.confirm(
-      `确定要拉黑IP "${ip}" 吗？\n将使用默认设置：永久拉黑`,
-      '拉黑IP',
+      t('requestLogs.blacklistConfirm', { ip }),
+      t('requestLogs.blacklistTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
 
     // @ts-ignore
-    await AddBlacklistEntry(ip, '从请求记录中拉黑', 0) // 0表示永久
-    ElMessage.success(`IP ${ip} 已添加到黑名单（永久）`)
+    await AddBlacklistEntry(ip, t('requestLogs.blacklistReason'), 0) // 0表示永久
+    ElMessage.success(t('requestLogs.blacklistSuccess', { ip }))
   } catch (error: any) {
     if (error !== 'cancel') {
       console.error('拉黑IP失败:', error)
-      ElMessage.error('拉黑IP失败: ' + (error.message || String(error)))
+      ElMessage.error(t('requestLogs.blacklistFailed', { error: error.message || String(error) }))
     }
   }
 }

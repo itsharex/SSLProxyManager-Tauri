@@ -573,13 +573,13 @@ const fetchTopRoutes = async () => {
 // 加载历史数据
 const loadHistoricalData = async () => {
   if (!dateRange.value || dateRange.value.length !== 2) {
-    ElMessage.warning('请选择日期范围')
+    ElMessage.warning(t('dashboard.selectDateRange'))
     return
   }
 
   const [startTime, endTime] = dateRange.value
   if (startTime >= endTime) {
-    ElMessage.warning('开始时间必须小于结束时间')
+    ElMessage.warning(t('dashboard.startTimeMustBeLess'))
     return
   }
 
@@ -620,14 +620,14 @@ const loadHistoricalData = async () => {
       historicalData.value = series
       // 载入历史数据后，Top Routes 才需要查询数据库
       fetchTopRoutes()
-      ElMessage.success(`历史数据加载成功，共 ${series.timestamps.length} 个数据点`)
+      ElMessage.success(t('dashboard.loadHistoricalSuccess', { count: series.timestamps.length }))
     } else {
-      ElMessage.warning('未找到历史数据')
+      ElMessage.warning(t('dashboard.noHistoricalData'))
       historicalData.value = null
     }
   } catch (error: any) {
     console.error('加载历史数据失败:', error)
-    ElMessage.error('加载历史数据失败: ' + (error.message || String(error)))
+    ElMessage.error(t('dashboard.loadHistoricalFailed', { error: error.message || String(error) }))
     historicalData.value = null
   } finally {
     loadingHistorical.value = false
@@ -642,7 +642,7 @@ const clearHistoricalData = () => {
   topPaths.value = []
   topClientIps.value = []
   topUpstreamErrors.value = []
-  ElMessage.info('已清除历史数据')
+  ElMessage.info(t('dashboard.historicalDataCleared'))
 }
 
 const chartColors = ref({

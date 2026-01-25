@@ -5,10 +5,6 @@
       <div class="header-row">
         <h3>{{ $t('baseConfig.title') }}</h3>
         <div class="header-actions">
-          <el-select v-model="currentLocale" @change="handleLocaleChange" size="small" style="width: 120px; margin-right: 12px;">
-            <el-option label="中文" value="zh-CN" />
-            <el-option label="English" value="en-US" />
-          </el-select>
           <el-button type="warning" size="small" plain @click="resetToDefaults">{{ $t('baseConfig.restoreDefaults') }}</el-button>
         </div>
       </div>
@@ -146,21 +142,7 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import { GetConfig } from '../api'
 import { useI18n } from 'vue-i18n'
 
-const { t, locale } = useI18n()
-
-// 当前语言选择
-const currentLocale = computed({
-  get: () => locale.value,
-  set: (val) => {
-    locale.value = val
-    localStorage.setItem('locale', val)
-  }
-})
-
-// 处理语言切换
-const handleLocaleChange = (val: string) => {
-  currentLocale.value = val
-}
+const { t } = useI18n()
 
 const resetToDefaults = async () => {
   try {

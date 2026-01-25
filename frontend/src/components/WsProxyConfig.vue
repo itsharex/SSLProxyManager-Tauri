@@ -213,7 +213,7 @@ const selectCertFile = async (ruleIndex: number) => {
       rules.value[ruleIndex].cert_file = String(filePath)
     }
   } catch (error: any) {
-    ElMessage.error(`选择证书文件失败: ${error.message || error}`)
+    ElMessage.error(t('wsProxy.selectCertFileFailed', { error: error.message || error }))
   }
 }
 
@@ -224,7 +224,7 @@ const selectKeyFile = async (ruleIndex: number) => {
       rules.value[ruleIndex].key_file = String(filePath)
     }
   } catch (error: any) {
-    ElMessage.error(`选择私钥文件失败: ${error.message || error}`)
+    ElMessage.error(t('wsProxy.selectKeyFileFailed', { error: error.message || error }))
   }
 }
 

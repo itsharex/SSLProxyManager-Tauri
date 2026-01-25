@@ -27,12 +27,12 @@
       <!-- 数据库状态显示 -->
       <el-card v-if="localConfig.enabled" class="status-card" shadow="never">
         <template #header>
-          <span>数据库状态</span>
+          <span>{{ $t('metricsStorage.dbStatus') }}</span>
         </template>
         <div v-if="dbStatus" class="status-content">
           <el-alert
             v-if="dbStatus.initialized && dbStatus.file_exists"
-            title="数据库已就绪"
+            :title="$t('metricsStorage.dbReady')"
             type="success"
             :closable="false"
             show-icon
@@ -40,40 +40,40 @@
             <template #default>
               <div class="status-grid">
                 <el-descriptions :column="3" border class="status-detail-table">
-                  <template #title>文件与容量</template>
-                  <el-descriptions-item label="数据库路径" :span="3">{{ dbStatus.path }}</el-descriptions-item>
+                  <template #title>{{ $t('metricsStorage.fileAndCapacity') }}</template>
+                  <el-descriptions-item :label="$t('metricsStorage.dbPathLabel')" :span="3">{{ dbStatus.path }}</el-descriptions-item>
 
-                  <el-descriptions-item label="DB(MB)">{{ formatBytes(dbStatus.db_file_size_bytes) }}</el-descriptions-item>
-                  <el-descriptions-item label="WAL(MB)">{{ formatBytes(dbStatus.wal_file_size_bytes) }}</el-descriptions-item>
-                  <el-descriptions-item label="SHM(MB)">{{ formatBytes(dbStatus.shm_file_size_bytes) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.dbMB')">{{ formatBytes(dbStatus.db_file_size_bytes) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.walMB')">{{ formatBytes(dbStatus.wal_file_size_bytes) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.shmMB')">{{ formatBytes(dbStatus.shm_file_size_bytes) }}</el-descriptions-item>
 
-                  <el-descriptions-item label="WAL+SHM(MB)">{{ formatBytes(walShmBytesTotal) }}</el-descriptions-item>
-                  <el-descriptions-item label="总页大小(MB)">{{ formatBytes(pageBytesTotal) }}</el-descriptions-item>
-                  <el-descriptions-item label="可回收(MB)">{{ formatBytes(freeBytesTotal) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.walShmMB')">{{ formatBytes(walShmBytesTotal) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.totalPageMB')">{{ formatBytes(pageBytesTotal) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.recyclableMB')">{{ formatBytes(freeBytesTotal) }}</el-descriptions-item>
                 </el-descriptions>
 
                 <el-descriptions :column="3" border class="status-detail-table">
-                  <template #title>日志与时间范围</template>
-                  <el-descriptions-item label="记录行数">{{ formatNumber(dbStatus.request_logs_count) }}</el-descriptions-item>
-                  <el-descriptions-item label="最早记录">{{ formatTs(dbStatus.request_logs_min_ts) }}</el-descriptions-item>
-                  <el-descriptions-item label="最新记录">{{ formatTs(dbStatus.request_logs_max_ts) }}</el-descriptions-item>
+                  <template #title>{{ $t('metricsStorage.logsAndTimeRange') }}</template>
+                  <el-descriptions-item :label="$t('metricsStorage.recordCount')">{{ formatNumber(dbStatus.request_logs_count) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.earliestRecord')">{{ formatTs(dbStatus.request_logs_min_ts) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.latestRecord')">{{ formatTs(dbStatus.request_logs_max_ts) }}</el-descriptions-item>
                 </el-descriptions>
 
                 <el-descriptions :column="3" border class="status-detail-table">
-                  <template #title>SQLite 配置</template>
-                  <el-descriptions-item label="SQLite 版本">{{ dbStatus.sqlite_version || '—' }}</el-descriptions-item>
-                  <el-descriptions-item label="journal_mode">{{ dbStatus.journal_mode || '—' }}</el-descriptions-item>
-                  <el-descriptions-item label="synchronous">{{ formatSynchronous(dbStatus.synchronous) }}</el-descriptions-item>
+                  <template #title>{{ $t('metricsStorage.sqliteConfig') }}</template>
+                  <el-descriptions-item :label="$t('metricsStorage.sqliteVersion')">{{ dbStatus.sqlite_version || '—' }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.journalMode')">{{ dbStatus.journal_mode || '—' }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.synchronous')">{{ formatSynchronous(dbStatus.synchronous) }}</el-descriptions-item>
 
-                  <el-descriptions-item label="page_size">{{ formatNumber(dbStatus.page_size) }}</el-descriptions-item>
-                  <el-descriptions-item label="page_count">{{ formatNumber(dbStatus.page_count) }}</el-descriptions-item>
-                  <el-descriptions-item label="freelist_count">{{ formatNumber(dbStatus.freelist_count) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.pageSize')">{{ formatNumber(dbStatus.page_size) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.pageCount')">{{ formatNumber(dbStatus.page_count) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.freelistCount')">{{ formatNumber(dbStatus.freelist_count) }}</el-descriptions-item>
 
-                  <el-descriptions-item label="碎片率">{{ fragRateText }}</el-descriptions-item>
-                  <el-descriptions-item label="cache_size">{{ formatCacheSize(dbStatus.cache_size) }}</el-descriptions-item>
-                  <el-descriptions-item label="busy_timeout(ms)">{{ formatNumber(dbStatus.busy_timeout_ms) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.fragmentationRate')">{{ fragRateText }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.cacheSize')">{{ formatCacheSize(dbStatus.cache_size) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.busyTimeout')">{{ formatNumber(dbStatus.busy_timeout_ms) }}</el-descriptions-item>
 
-                  <el-descriptions-item label="wal_autocheckpoint">{{ formatNumber(dbStatus.wal_autocheckpoint) }}</el-descriptions-item>
+                  <el-descriptions-item :label="$t('metricsStorage.walAutocheckpoint')">{{ formatNumber(dbStatus.wal_autocheckpoint) }}</el-descriptions-item>
                   <el-descriptions-item label="—">—</el-descriptions-item>
                   <el-descriptions-item label="—">—</el-descriptions-item>
                 </el-descriptions>
@@ -83,15 +83,15 @@
 
           <el-alert
             v-else-if="dbStatus.initialized && !dbStatus.file_exists && dbStatus.dir_exists && dbStatus.dir_writable"
-            title="数据库就绪（等待首次写入）"
+            :title="$t('metricsStorage.dbReadyWaiting')"
             type="success"
             :closable="false"
             show-icon
           >
             <template #default>
               <div class="status-detail">
-                <p><strong>数据库路径：</strong>{{ dbStatus.path }}</p>
-                <p><strong>目录状态：</strong>目录存在且可写</p>
+                <p><strong>{{ $t('metricsStorage.dbPathLabel') }}：</strong>{{ dbStatus.path }}</p>
+                <p><strong>{{ $t('metricsStorage.dirStatus') }}</strong></p>
                 <p v-if="dbStatus.message" class="info-hint">{{ dbStatus.message }}</p>
               </div>
             </template>
@@ -99,27 +99,27 @@
 
           <el-alert
             v-else-if="dbStatus.error"
-            :title="dbStatus.initialized ? '数据库配置异常' : '数据库初始化失败'"
+            :title="dbStatus.initialized ? $t('metricsStorage.dbConfigError') : $t('metricsStorage.dbInitFailed')"
             type="error"
             :closable="false"
             show-icon
           >
             <template #default>
               <div class="status-detail">
-                <p v-if="dbStatus.path"><strong>数据库路径：</strong>{{ dbStatus.path }}</p>
-                <p v-if="dbStatus.error"><strong>错误信息：</strong>{{ dbStatus.error }}</p>
+                <p v-if="dbStatus.path"><strong>{{ $t('metricsStorage.dbPathLabel') }}：</strong>{{ dbStatus.path }}</p>
+                <p v-if="dbStatus.error"><strong>{{ $t('metricsStorage.errorInfo') }}</strong>{{ dbStatus.error }}</p>
                 <p v-if="!dbStatus.dir_exists" class="error-hint">
-                  目录不存在，请检查路径是否正确，或手动创建目录
+                  {{ $t('metricsStorage.dirNotExists') }}
                 </p>
                 <p v-else-if="!dbStatus.dir_writable" class="error-hint">
-                  目录存在但无写入权限，请检查目录权限设置
+                  {{ $t('metricsStorage.dirNotWritable') }}
                 </p>
-                <p v-else class="error-hint">请检查路径配置和权限设置</p>
+                <p v-else class="error-hint">{{ $t('metricsStorage.checkPathAndPermission') }}</p>
               </div>
             </template>
           </el-alert>
 
-          <el-alert v-else title="正在检查数据库状态..." type="info" :closable="false" show-icon />
+          <el-alert v-else :title="$t('metricsStorage.checkingStatus')" type="info" :closable="false" show-icon />
         </div>
 
         <el-button
@@ -129,19 +129,19 @@
           :loading="checkingStatus"
           style="margin-top: 10px;"
         >
-          刷新状态
+          {{ $t('metricsStorage.refreshStatus') }}
         </el-button>
       </el-card>
 
       <el-card v-if="localConfig.enabled" class="info-card" shadow="never">
         <template #header>
-          <span>数据说明</span>
+          <span>{{ $t('metricsStorage.dataDescription') }}</span>
         </template>
         <ul class="info-list">
-          <li>请求日志采用异步写入，不会阻塞代理转发</li>
-          <li>写入为批量落库：最多累计 2000 条或 5 秒触发一次写入</li>
-          <li>数据库保留最近 730 天的请求日志，系统每天检查并自动清理更早的数据</li>
-          <li>数据库使用连接池管理，最大 3 个连接（SQLite）</li>
+          <li>{{ $t('metricsStorage.asyncWrite') }}</li>
+          <li>{{ $t('metricsStorage.batchWrite') }}</li>
+          <li>{{ $t('metricsStorage.retention') }}</li>
+          <li>{{ $t('metricsStorage.connectionPool') }}</li>
         </ul>
       </el-card>
     </el-form>
@@ -153,7 +153,7 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { useDBStatus } from '../composables/useDBStatus'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const props = defineProps<{
   config: any
@@ -171,7 +171,8 @@ const formatNumber = (n: any) => {
   const num = Number(n)
   if (!Number.isFinite(num)) return '—'
   try {
-    return new Intl.NumberFormat('zh-CN').format(num)
+    const localeStr = locale.value === 'zh-CN' ? 'zh-CN' : 'en-US'
+    return new Intl.NumberFormat(localeStr).format(num)
   } catch {
     return String(num)
   }
@@ -196,7 +197,8 @@ const formatTs = (ts: any) => {
   if (ts === null || ts === undefined) return '—'
   const num = Number(ts)
   if (!Number.isFinite(num) || num <= 0) return '—'
-  return new Date(num * 1000).toLocaleString('zh-CN', { hour12: false })
+  const localeStr = locale.value === 'zh-CN' ? 'zh-CN' : 'en-US'
+  return new Date(num * 1000).toLocaleString(localeStr, { hour12: false })
 }
 
 const formatSynchronous = (v: any) => {
