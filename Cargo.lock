@@ -20,6 +20,7 @@ dependencies = [
  "hyper-util",
  "once_cell",
  "parking_lot",
+ "regex",
  "reqwest",
  "rfd 0.14.1",
  "rustls",

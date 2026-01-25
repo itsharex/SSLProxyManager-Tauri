@@ -1,5 +1,7 @@
 use crate::{access_control, config, metrics, ws_proxy, stream_proxy, rate_limit};
+use regex::Regex;
 use anyhow::{anyhow, Context, Result};
+use axum::body::Bytes;
 use axum::{
     body::Body,
     extract::{connect_info::ConnectInfo, State},
@@ -1079,11 +1081,30 @@ async fn proxy_handler(
 
     // 3. 处理反代逻辑
     if let Some(upstream_url) = pick_upstream_smooth(route) {
+        // 3.1 URL 重写（在构建目标URL之前）
+        let mut final_uri = ctx.uri.clone();
+        if let Some(rules) = route.url_rewrite_rules.as_ref() {
+            for rule in rules {
+                if !rule.enabled {
+                    continue;
+                }
+                if let Ok(re) = Regex::new(&rule.pattern) {
+                    let original = final_uri.to_string();
+                    let rewritten = re.replace_all(&original, &rule.replacement);
+                    if rewritten != original {
+                        if let Ok(new_uri) = rewritten.parse::<Uri>() {
+                            final_uri = new_uri;
+                        }
+                    }
+                }
+            }
+        }
+
         let target = match build_upstream_url(
             &upstream_url,
             route.path.as_deref(),
             route.proxy_pass_path.as_deref(),
-            &ctx.uri,
+            &final_uri,
         ) {
             Ok(u) => u,
             Err(e) => {
@@ -1135,8 +1156,33 @@ async fn proxy_handler(
                         .into_response();
                 }
             };
-            let len = bytes.len();
-            (reqwest::Body::from(bytes), Some(len))
+
+            // 3.2 请求体修改（如果配置了替换规则）
+            let final_bytes = if let Some(rules) = route.request_body_replace.as_ref() {
+                if let Ok(body_str) = String::from_utf8(bytes.to_vec()) {
+                    let mut modified_body = body_str;
+                    for rule in rules {
+                        if !rule.enabled {
+                            continue;
+                        }
+                        if rule.use_regex {
+                            if let Ok(re) = Regex::new(&rule.find) {
+                                modified_body = re.replace_all(&modified_body, &rule.replace).to_string();
+                            }
+                        } else {
+                            modified_body = modified_body.replace(&rule.find, &rule.replace);
+                        }
+                    }
+                    Bytes::from(modified_body.into_bytes())
+                } else {
+                    bytes
+                }
+            } else {
+                bytes
+            };
+
+            let len = final_bytes.len();
+            (reqwest::Body::from(final_bytes), Some(len))
         };
 
         // 构造最终 headers（使用预计算的 SKIP_HEADERS）
@@ -1225,6 +1271,19 @@ async fn proxy_handler(
             final_headers.remove(axum::http::header::AUTHORIZATION);
         }
 
+        // 3.3 移除指定的请求头
+        if let Some(headers_to_remove) = route.remove_headers.as_ref() {
+            for header_name in headers_to_remove {
+                let trimmed = header_name.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Ok(name) = HeaderName::from_bytes(trimmed.as_bytes()) {
+                    final_headers.remove(name);
+                }
+            }
+        }
+
         // 构造上游请求
         let mut builder = client.request(method_up, target.clone());
         builder = builder.body(reqwest_body);
@@ -1292,6 +1351,19 @@ async fn proxy_handler(
             out.headers_mut().insert(k.clone(), v.clone());
         }
 
+        // 3.4 移除指定的响应头
+        if let Some(headers_to_remove) = route.remove_headers.as_ref() {
+            for header_name in headers_to_remove {
+                let trimmed = header_name.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Ok(name) = HeaderName::from_bytes(trimmed.as_bytes()) {
+                    out.headers_mut().remove(name);
+                }
+            }
+        }
+
         // 响应体处理
         if state.stream_proxy {
             let stream = resp.bytes_stream();
@@ -1319,7 +1391,31 @@ async fn proxy_handler(
                     .into_response();
             }
 
-            *out.body_mut() = Body::from(bytes);
+            // 3.5 响应体修改（如果配置了替换规则）
+            let final_bytes = if let Some(rules) = route.response_body_replace.as_ref() {
+                if let Ok(body_str) = String::from_utf8(bytes.to_vec()) {
+                    let mut modified_body = body_str;
+                    for rule in rules {
+                        if !rule.enabled {
+                            continue;
+                        }
+                        if rule.use_regex {
+                            if let Ok(re) = Regex::new(&rule.find) {
+                                modified_body = re.replace_all(&modified_body, &rule.replace).to_string();
+                            }
+                        } else {
+                            modified_body = modified_body.replace(&rule.find, &rule.replace);
+                        }
+                    }
+                    Bytes::from(modified_body.into_bytes())
+                } else {
+                    bytes
+                }
+            } else {
+                bytes
+            };
+
+            *out.body_mut() = Body::from(final_bytes);
         }
 
         // 仅错误时记录详细日志

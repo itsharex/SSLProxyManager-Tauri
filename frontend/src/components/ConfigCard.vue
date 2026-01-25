@@ -179,6 +179,101 @@
                     </el-button>
                   </div>
                 </div>
+
+                <div class="sub-section">
+                  <div class="sub-section-header">请求/响应修改</div>
+                  <div class="sub-section-body">
+                    <!-- URL 重写规则 -->
+                    <el-form-item label="URL 重写规则">
+                      <TransitionGroup name="list" tag="div">
+                        <div v-for="(rule, idx) in (rt.UrlRewriteRules || [])" :key="idx" class="rewrite-rule-item">
+                          <el-input v-model="rule.Pattern" placeholder="正则表达式，如: ^/api/(.*)$" style="flex: 1;" />
+                          <el-input v-model="rule.Replacement" placeholder="替换为，如: /v1/$1" style="flex: 1;" />
+                          <el-switch v-model="rule.Enabled" />
+                          <el-button @click="(rt.UrlRewriteRules || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                        </div>
+                      </TransitionGroup>
+                      <el-button @click="(rt.UrlRewriteRules ||= []).push({ Pattern: '', Replacement: '', Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
+                        <el-icon><Plus /></el-icon> 添加 URL 重写规则
+                      </el-button>
+                      <el-text type="info" size="small" class="mini-hint">
+                        使用正则表达式匹配 URL，支持 $1, $2 等捕获组。例如：^/api/(.*)$ 替换为 /v1/$1
+                      </el-text>
+                    </el-form-item>
+
+                    <!-- 请求体替换规则 -->
+                    <el-form-item label="请求体替换规则">
+                      <TransitionGroup name="list" tag="div">
+                        <div v-for="(rule, idx) in (rt.RequestBodyReplace || [])" :key="idx" class="replace-rule-item">
+                          <el-input v-model="rule.Find" placeholder="查找文本（支持正则）" style="flex: 1;" />
+                          <el-input v-model="rule.Replace" placeholder="替换为" style="flex: 1;" />
+                          <el-checkbox v-model="rule.UseRegex">正则</el-checkbox>
+                          <el-switch v-model="rule.Enabled" />
+                          <el-button @click="(rt.RequestBodyReplace || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                        </div>
+                      </TransitionGroup>
+                      <el-button @click="(rt.RequestBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
+                        <el-icon><Plus /></el-icon> 添加请求体替换规则
+                      </el-button>
+                      <el-text type="info" size="small" class="mini-hint">
+                        对请求体进行文本替换，支持正则表达式。仅对文本类型的请求体有效。
+                      </el-text>
+                    </el-form-item>
+
+                    <!-- 响应体替换规则 -->
+                    <el-form-item label="响应体替换规则">
+                      <el-alert
+                        type="warning"
+                        :closable="false"
+                        style="margin-bottom: 12px;"
+                      >
+                        <template #title>
+                          <strong>⚠️ 法律风险提示</strong>
+                        </template>
+                        <template #default>
+                          <div style="font-size: 12px; line-height: 1.6;">
+                            响应体修改功能可用于合法用途（如内容定制、广告过滤等），但请确保：
+                            <br />• 仅在你拥有或已获得授权的设备/网络上使用
+                            <br />• 不用于欺诈、钓鱼或其他非法用途
+                            <br />• 遵守相关法律法规和网站服务条款
+                            <br />• 任何非法使用产生的法律责任由使用者自行承担
+                          </div>
+                        </template>
+                      </el-alert>
+                      <TransitionGroup name="list" tag="div">
+                        <div v-for="(rule, idx) in (rt.ResponseBodyReplace || [])" :key="idx" class="replace-rule-item">
+                          <el-input v-model="rule.Find" placeholder="查找文本（支持正则）" style="flex: 1;" />
+                          <el-input v-model="rule.Replace" placeholder="替换为" style="flex: 1;" />
+                          <el-checkbox v-model="rule.UseRegex">正则</el-checkbox>
+                          <el-switch v-model="rule.Enabled" />
+                          <el-button @click="(rt.ResponseBodyReplace || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                        </div>
+                      </TransitionGroup>
+                      <el-button @click="(rt.ResponseBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
+                        <el-icon><Plus /></el-icon> 添加响应体替换规则
+                      </el-button>
+                      <el-text type="info" size="small" class="mini-hint">
+                        对响应体进行文本替换，支持正则表达式。仅对文本类型的响应体有效。
+                      </el-text>
+                    </el-form-item>
+
+                    <!-- 移除请求/响应头 -->
+                    <el-form-item label="移除请求/响应头">
+                      <TransitionGroup name="list" tag="div">
+                        <div v-for="(header, idx) in (rt.RemoveHeaders || [])" :key="idx" class="header-item">
+                          <el-input v-model="rt.RemoveHeaders[idx]" placeholder="Header 名称，如: X-API-Key" />
+                          <el-button @click="(rt.RemoveHeaders || []).splice(idx, 1)" type="danger" size="small">删除</el-button>
+                        </div>
+                      </TransitionGroup>
+                      <el-button @click="(rt.RemoveHeaders ||= []).push('')" type="primary" size="small" style="margin-top: 12px;">
+                        <el-icon><Plus /></el-icon> 添加要移除的 Header
+                      </el-button>
+                      <el-text type="info" size="small" class="mini-hint">
+                        指定要从请求和响应中移除的 Header 名称。
+                      </el-text>
+                    </el-form-item>
+                  </div>
+                </div>
               </el-card>
             </TransitionGroup>
               <el-button @click="addRoute(ruleIndex)" type="primary" style="margin-top: 10px;">
@@ -321,8 +416,25 @@ interface Route {
 
   StaticDir?: string
   ExcludeBasicAuth?: boolean
+  UrlRewriteRules?: UrlRewriteRule[]
+  RequestBodyReplace?: BodyReplaceRule[]
+  ResponseBodyReplace?: BodyReplaceRule[]
+  RemoveHeaders?: string[]
 
   Upstreams: Upstream[]
+}
+
+interface UrlRewriteRule {
+  Pattern: string
+  Replacement: string
+  Enabled?: boolean
+}
+
+interface BodyReplaceRule {
+  Find: string
+  Replace: string
+  UseRegex?: boolean
+  Enabled?: boolean
 }
 
 interface ListenRule {
@@ -435,6 +547,24 @@ onMounted(async () => {
         })),
         StaticDir: rt.static_dir || '',
         ExcludeBasicAuth: !!rt.exclude_basic_auth,
+        UrlRewriteRules: (rt.url_rewrite_rules || []).map((r: any) => ({
+          Pattern: r.pattern || '',
+          Replacement: r.replacement || '',
+          Enabled: r.enabled !== undefined ? !!r.enabled : true,
+        })),
+        RequestBodyReplace: (rt.request_body_replace || []).map((r: any) => ({
+          Find: r.find || '',
+          Replace: r.replace || '',
+          UseRegex: !!r.use_regex,
+          Enabled: r.enabled !== undefined ? !!r.enabled : true,
+        })),
+        ResponseBodyReplace: (rt.response_body_replace || []).map((r: any) => ({
+          Find: r.find || '',
+          Replace: r.replace || '',
+          UseRegex: !!r.use_regex,
+          Enabled: r.enabled !== undefined ? !!r.enabled : true,
+        })),
+        RemoveHeaders: rt.remove_headers || [],
         Upstreams: (rt.upstreams || []).map((u: any) => ({
           URL: u.url || '',
           Weight: u.weight || 1,
@@ -599,6 +729,10 @@ const addRoute = (ruleIndex: number) => {
     SetHeadersList: [],
     StaticDir: '',
     ExcludeBasicAuth: false,
+    UrlRewriteRules: [],
+    RequestBodyReplace: [],
+    ResponseBodyReplace: [],
+    RemoveHeaders: [],
     Upstreams: [{ URL: '', Weight: 1 }],
   })
 }
@@ -702,6 +836,24 @@ const getConfig = () => {
         SetHeaders: setHeaders,
         StaticDir: (rt.StaticDir || '').trim(),
         ExcludeBasicAuth: !!rt.ExcludeBasicAuth,
+        UrlRewriteRules: (rt.UrlRewriteRules || []).filter((r) => r.Pattern.trim() !== '').map((r) => ({
+          Pattern: r.Pattern.trim(),
+          Replacement: r.Replacement.trim(),
+          Enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+        })),
+        RequestBodyReplace: (rt.RequestBodyReplace || []).filter((r) => r.Find.trim() !== '').map((r) => ({
+          Find: r.Find.trim(),
+          Replace: r.Replace.trim(),
+          UseRegex: !!r.UseRegex,
+          Enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+        })),
+        ResponseBodyReplace: (rt.ResponseBodyReplace || []).filter((r) => r.Find.trim() !== '').map((r) => ({
+          Find: r.Find.trim(),
+          Replace: r.Replace.trim(),
+          UseRegex: !!r.UseRegex,
+          Enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+        })),
+        RemoveHeaders: (rt.RemoveHeaders || []).filter((h) => h.trim() !== '').map((h) => h.trim()),
         Upstreams: rt.Upstreams.filter((u) => u.URL.trim() !== '').map((u) => ({
           URL: u.URL.trim(),
           Weight: u.Weight > 0 ? u.Weight : 1,
@@ -766,6 +918,24 @@ const getConfig = () => {
       set_headers: rt.SetHeaders || {},
       static_dir: rt.StaticDir || undefined,
       exclude_basic_auth: !!rt.ExcludeBasicAuth,
+      url_rewrite_rules: (rt.UrlRewriteRules || []).filter((r: any) => r.Pattern.trim() !== '').map((r: any) => ({
+        pattern: r.Pattern.trim(),
+        replacement: r.Replacement.trim(),
+        enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+      })),
+      request_body_replace: (rt.RequestBodyReplace || []).filter((r: any) => r.Find.trim() !== '').map((r: any) => ({
+        find: r.Find.trim(),
+        replace: r.Replace.trim(),
+        use_regex: !!r.UseRegex,
+        enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+      })),
+      response_body_replace: (rt.ResponseBodyReplace || []).filter((r: any) => r.Find.trim() !== '').map((r: any) => ({
+        find: r.Find.trim(),
+        replace: r.Replace.trim(),
+        use_regex: !!r.UseRegex,
+        enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+      })),
+      remove_headers: (rt.RemoveHeaders || []).filter((h: any) => h.trim() !== '').map((h: any) => h.trim()),
       upstreams: (rt.Upstreams || []).map((u: any) => ({
         url: u.URL,
         weight: u.Weight,
@@ -916,6 +1086,14 @@ defineExpose({
 
 .upstream-item {
   grid-template-columns: 2fr 1fr auto;
+}
+
+.rewrite-rule-item {
+  grid-template-columns: 2fr 2fr auto auto;
+}
+
+.replace-rule-item {
+  grid-template-columns: 2fr 2fr auto auto auto;
 }
 
 .headers-hint {

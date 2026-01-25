@@ -138,7 +138,44 @@ pub struct Route {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compression_min_length: Option<usize>,
 
+    // 请求/响应修改配置
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url_rewrite_rules: Option<Vec<UrlRewriteRule>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_body_replace: Option<Vec<BodyReplaceRule>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_body_replace: Option<Vec<BodyReplaceRule>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remove_headers: Option<Vec<String>>,
+
     pub upstreams: Vec<Upstream>,
+}
+
+/// URL 重写规则
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UrlRewriteRule {
+    /// 正则表达式模式
+    pub pattern: String,
+    /// 替换字符串（支持 $1, $2 等捕获组）
+    pub replacement: String,
+    /// 是否启用
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+/// 请求/响应体替换规则
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BodyReplaceRule {
+    /// 查找的文本（支持正则表达式）
+    pub find: String,
+    /// 替换的文本（支持 $1, $2 等捕获组）
+    pub replace: String,
+    /// 是否使用正则表达式
+    #[serde(default)]
+    pub use_regex: bool,
+    /// 是否启用
+    #[serde(default = "default_true")]
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

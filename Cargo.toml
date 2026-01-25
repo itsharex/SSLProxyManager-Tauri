@@ -57,6 +57,9 @@ url = "^2.5"
 tokio-tungstenite = { version = "^0.28", features = ["rustls-tls-webpki-roots"] }
 futures-util = "^0.3"
 
+# 正则表达式支持（用于URL重写）
+regex = "^1.11"
+
 [features]
 # 默认启用所有功能
 default = []
