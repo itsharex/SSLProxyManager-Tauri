@@ -1,5 +1,7 @@
 # SSLProxyManager
 
+**[中文文档 (Chinese Documentation)](README_zh.md)**
+
 SSLProxyManager is a desktop proxy management tool based on **Tauri 2 + Rust**, providing a management interface (frontend: **Vue 3 + Vite + Element Plus**) for configuring and managing:
 
 - HTTP/HTTPS reverse proxy
@@ -8,8 +10,6 @@ SSLProxyManager is a desktop proxy management tool based on **Tauri 2 + Rust**, 
 - Static resource hosting
 - Access control (LAN/whitelist)
 - Runtime status and log viewing
-
-**[中文文档 (Chinese Documentation)](README_zh.md)**
 
 ## Features Overview
 
