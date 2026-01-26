@@ -1,5 +1,7 @@
 # SSLProxyManager
 
+**[(English Documentation)](README.md)**
+
 SSLProxyManager 是一个基于 **Tauri 2 + Rust** 的桌面代理管理工具，提供管理界面（前端：**Vue 3 + Vite + Element Plus**），用于配置与管理：
 
 - HTTP/HTTPS 反向代理
