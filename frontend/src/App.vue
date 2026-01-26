@@ -7,15 +7,7 @@
         <h1>{{ $t('app.title') }}</h1>
         <div class="top-bar-right">
           <div class="theme-control">
-            <el-select 
-              v-model="currentLocale" 
-              @change="handleLocaleChange" 
-              size="small" 
-              style="width: 120px; margin-right: 12px;"
-            >
-              <el-option :label="$t('common.chinese')" value="zh-CN" />
-              <el-option :label="$t('common.english')" value="en-US" />
-            </el-select>
+            <LanguageSelector />
             <el-switch
               v-model="autoThemeEnabled"
               @change="handleAutoThemeChange"
@@ -112,7 +104,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { StartServer, StopServer, GetStatus, QuitApp, OpenURL, EventsOn, SetTrayProxyState, SetLocale } from './api'
+import { StartServer, StopServer, GetStatus, QuitApp, OpenURL, EventsOn, SetTrayProxyState } from './api'
 import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import TitleBar from './components/TitleBar.vue'
 import BaseConfig from './components/BaseConfig.vue'
@@ -127,6 +119,7 @@ import RequestLogs from './components/RequestLogs.vue'
 import About from './components/About.vue'
 import Sidebar from './components/Sidebar.vue'
 import TermsDialog from './components/TermsDialog.vue'
+import LanguageSelector from './components/LanguageSelector.vue'
 import { Sunny, Moon, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { GetConfig, SaveConfig } from './api'
@@ -193,27 +186,6 @@ const stopRuntimeTimer = () => {
   if (runtimeTimer) {
     clearInterval(runtimeTimer)
     runtimeTimer = null
-  }
-}
-
-// 语言切换
-const currentLocale = computed({
-  get: () => locale.value,
-  set: (val) => {
-    locale.value = val
-    localStorage.setItem('locale', val)
-  }
-})
-
-// 处理语言切换
-const handleLocaleChange = async (val: string) => {
-  currentLocale.value = val
-  // 同步到后端，更新托盘菜单
-  try {
-    // @ts-ignore
-    await SetLocale(val)
-  } catch (error) {
-    console.error('设置语言失败:', error)
   }
 }
 
@@ -567,13 +539,7 @@ onMounted(async () => {
   loadSidebarState()
   
   // 同步语言设置到后端（更新托盘菜单）
-  try {
-    const savedLocale = localStorage.getItem('locale') || 'zh-CN'
-    // @ts-ignore
-    await SetLocale(savedLocale)
-  } catch (error) {
-    console.error('同步语言设置失败:', error)
-  }
+  // 语言选择器组件会在初始化时自动同步，这里不需要手动调用
   
   // 启动自动主题切换（如果已启用）
   startAutoTheme()

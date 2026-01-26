@@ -11,15 +11,7 @@
   >
     <div class="terms-content">
       <div class="language-selector">
-        <el-select 
-          v-model="currentLocale" 
-          @change="handleLocaleChange" 
-          size="small" 
-          style="width: 120px;"
-        >
-          <el-option :label="$t('common.chinese')" value="zh-CN" />
-          <el-option :label="$t('common.english')" value="en-US" />
-        </el-select>
+        <LanguageSelector />
       </div>
       <el-scrollbar height="500px">
         <div class="terms-text">
@@ -57,33 +49,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { SetTermsAccepted, QuitApp, SetLocale } from '../api'
+import { SetTermsAccepted, QuitApp } from '../api'
 import { useI18n } from 'vue-i18n'
+import LanguageSelector from './LanguageSelector.vue'
 
-const { t, locale } = useI18n()
-
-// 语言切换
-const currentLocale = computed({
-  get: () => locale.value,
-  set: (val) => {
-    locale.value = val
-    localStorage.setItem('locale', val)
-  }
-})
-
-// 处理语言切换
-const handleLocaleChange = async (val: string) => {
-  currentLocale.value = val
-  // 同步到后端，更新托盘菜单
-  try {
-    // @ts-ignore
-    await SetLocale(val)
-  } catch (error) {
-    console.error('设置语言失败:', error)
-  }
-}
+const { t } = useI18n()
 
 const props = defineProps<{
   requireAccept?: boolean  // 是否要求必须接受（首次启动时为true，查看时为false）
