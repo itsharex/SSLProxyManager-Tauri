@@ -1,6 +1,6 @@
 use axum::http::HeaderMap;
 use std::net::{IpAddr, SocketAddr};
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{config, metrics};
 
@@ -17,7 +17,7 @@ pub(crate) fn to_ipv4_mapped(ip: &IpAddr) -> IpAddr {
             // 使用 Rust 标准库的方法检查并转换 IPv4-mapped IPv6 地址
             if let Some(v4) = v6.to_ipv4_mapped() {
                 let result = IpAddr::V4(v4);
-                info!("to_ipv4_mapped: converted {} to {}", ip, result);
+                // info!("to_ipv4_mapped: converted {} to {}", ip, result);
                 result
             } else {
                 *ip
@@ -97,8 +97,8 @@ pub fn is_allowed_fast(remote: &SocketAddr, headers: &HeaderMap, allow_all_lan: 
     let remote_ip_raw = remote.ip();
     let ip = to_ipv4_mapped(&remote_ip_raw);
     
-    info!("Access control check: remote_ip_raw={}, converted_ip={}, ip_str={}, allow_all_lan={}", 
-          remote_ip_raw, ip, ip_str, allow_all_lan);
+    // info!("Access control check: remote_ip_raw={}, converted_ip={}, ip_str={}, allow_all_lan={}", 
+    //       remote_ip_raw, ip, ip_str, allow_all_lan);
 
     // 本机回环地址（127.0.0.1 / ::1）永远允许，不需要加入白名单
     if is_loopback_ip(&ip) {
@@ -124,7 +124,7 @@ pub fn is_allowed_fast(remote: &SocketAddr, headers: &HeaderMap, allow_all_lan: 
 
     let is_lan = is_lan_ip(&ip);
     let allowed = allow_all_lan && is_lan;
-    info!("IP {} is_lan={}, allow_all_lan={}, final_allowed={}", ip, is_lan, allow_all_lan, allowed);
+    // info!("IP {} is_lan={}, allow_all_lan={}, final_allowed={}", ip, is_lan, allow_all_lan, allowed);
     
     allowed
 }

@@ -939,6 +939,21 @@ async fn proxy_handler(
             let status = StatusCode::FORBIDDEN;
             push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
 
+            // 403响应详细日志
+            let inbound_headers_line = req.headers()
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("[invalid utf8]")))
+                .collect::<Vec<_>>()
+                .join(" ## ");
+
+            send_log_with_app(&state.app, format!(
+                "反代错误(IN): {} {} -> [IP黑名单] status={} | inbound_headers=[{}]",
+                ctx.method.as_str(),
+                ctx.uri,
+                status.as_u16(),
+                inbound_headers_line
+            ));
+
             metrics::try_enqueue_request_log(metrics::RequestLogInsert {
                 timestamp: chrono::Utc::now().timestamp(),
                 listen_addr: node.to_string(),
@@ -976,6 +991,25 @@ async fn proxy_handler(
             );
             info!("{}", debug_msg);
             push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
+
+            // 403响应详细日志
+            let inbound_headers_line = req.headers()
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("[invalid utf8]")))
+                .collect::<Vec<_>>()
+                .join(" ## ");
+
+            send_log_with_app(&state.app, format!(
+                "反代错误(IN): {} {} -> [访问控制拒绝] status={} | inbound_headers=[{}] | client_ip={}, remote_ip={}, allow_all_lan={}, whitelist_len={}",
+                ctx.method.as_str(),
+                ctx.uri,
+                status.as_u16(),
+                inbound_headers_line,
+                ctx.client_ip,
+                remote.ip(),
+                state.allow_all_lan,
+                state.whitelist.len()
+            ));
 
             metrics::try_enqueue_request_log(metrics::RequestLogInsert {
                 timestamp: chrono::Utc::now().timestamp(),
@@ -1055,6 +1089,21 @@ async fn proxy_handler(
     if !is_basic_auth_ok(&state.rule, route, req.headers()) {
         let status = StatusCode::UNAUTHORIZED;
         push_log_lazy(&state.app, || format_access_log(node, &ctx, status));
+
+        // 401响应详细日志
+        let inbound_headers_line = req.headers()
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("[invalid utf8]")))
+            .collect::<Vec<_>>()
+            .join(" ## ");
+
+        send_log_with_app(&state.app, format!(
+            "反代错误(IN): {} {} -> [Basic Auth失败] status={} | inbound_headers=[{}]",
+            ctx.method.as_str(),
+            ctx.uri,
+            status.as_u16(),
+            inbound_headers_line
+        ));
 
         metrics::try_enqueue_request_log(metrics::RequestLogInsert {
             timestamp: chrono::Utc::now().timestamp(),
@@ -1558,7 +1607,7 @@ async fn proxy_handler(
                 .collect::<Vec<_>>()
                 .join(" ## ");
 
-            send_log(format!(
+            send_log_with_app(&state.app, format!(
                 "反代错误(IN): {} {} -> {} status={} | inbound_headers=[{}]",
                 ctx.method.as_str(),
                 ctx.uri,
@@ -1567,7 +1616,7 @@ async fn proxy_handler(
                 inbound_headers_line
             ));
 
-            send_log(format!(
+            send_log_with_app(&state.app, format!(
                 "反代错误(OUT): {} {} -> {} status={} | outbound_headers=[{}] | req_body_size={}",
                 ctx.method.as_str(),
                 ctx.uri,
@@ -1671,6 +1720,11 @@ fn expand_proxy_header_value(raw: &str, remote: &SocketAddr, inbound_headers: &H
 
     let remote_ip = remote.ip().to_string();
     let scheme = if is_tls { "https" } else { "http" };
+    let host = inbound_headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
 
     // 仅在需要时计算 $proxy_add_x_forwarded_for
     let proxy_add_xff = if raw.contains("$proxy_add_x_forwarded_for") {
@@ -1703,6 +1757,11 @@ fn expand_proxy_header_value(raw: &str, remote: &SocketAddr, inbound_headers: &H
             if rest.starts_with("$scheme") {
                 out.push_str(scheme);
                 i += "$scheme".len();
+                continue;
+            }
+            if rest.starts_with("$host") {
+                out.push_str(&host);
+                i += "$host".len();
                 continue;
             }
             if rest.starts_with("$proxy_add_x_forwarded_for") {
