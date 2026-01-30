@@ -95,6 +95,7 @@ struct AppState {
     app: tauri::AppHandle,
     // 缓存配置字段，避免每次请求都克隆整个 Config
     listen_addr: Arc<str>,
+    server_port: u16,
     stream_proxy: bool,
     max_body_size: usize,
     max_response_body_size: usize,
@@ -467,6 +468,7 @@ async fn start_rule_server(
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<()> {
     let (addr, need_dual_stack) = parse_listen_addr(&listen_addr)?;
+    let server_port = addr.port();
 
     let cfg = crate::config::get_config();
 
@@ -502,6 +504,7 @@ async fn start_rule_server(
         client_nofollow,
         app: app.clone(),
         listen_addr: Arc::from(listen_addr.clone()),
+        server_port,
         stream_proxy: cfg.stream_proxy,
         max_body_size: cfg.max_body_size,
         max_response_body_size: cfg.max_response_body_size,
@@ -1197,7 +1200,7 @@ async fn proxy_handler(
     }
 
     // 3. 处理反代逻辑
-    if let Some(upstream_url) = pick_upstream_smooth(route) {
+    if let Some(mut upstream_url) = pick_upstream_smooth(route) {
         // 3.1 URL 重写（在构建目标URL之前）
         let mut final_uri = ctx.uri.clone();
         if let Some(rules) = route.url_rewrite_rules.as_ref() {
@@ -1215,6 +1218,12 @@ async fn proxy_handler(
                     }
                 }
             }
+        }
+
+        // 支持在 upstream URL 中使用 $server_port 占位符（例如 http://192.168.1.121:$server_port）
+        if upstream_url.contains("$server_port") {
+            let port_str = state.server_port.to_string();
+            upstream_url = upstream_url.replace("$server_port", &port_str);
         }
 
         let target = match build_upstream_url(
