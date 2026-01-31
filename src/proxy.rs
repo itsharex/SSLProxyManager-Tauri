@@ -143,7 +143,12 @@ impl RequestContext {
 
         let xff = header_to_string(headers, "x-forwarded-for");
         let xri = header_to_string(headers, "x-real-ip");
-        let host = header_to_string(headers, "host");
+        // 获取 Host 头，如果不存在则使用空字符串（而不是 "-"），以便正确匹配没有 Host 头的请求
+        let host = headers
+            .get("host")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
         let referer = header_to_string(headers, "referer");
         let ua = header_to_string(headers, "user-agent");
 
@@ -246,61 +251,61 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
         };
 
         for listen_addr in addrs {
-            let app_handle = app.clone();
+        let app_handle = app.clone();
             let rule_clone = rule.clone();
             let listen_addr_clone = listen_addr.clone();
-            let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
 
-            let handle = tauri::async_runtime::spawn(async move {
+        let handle = tauri::async_runtime::spawn(async move {
                 if let Err(e) = precheck_rule(&rule_clone, &listen_addr_clone).await {
                     error!("启动监听器失败({listen_addr_clone}): {e}");
                     send_log(format!("启动监听器失败({listen_addr_clone}): {e}"));
 
-                    let payload = RuleStartErrorPayload {
+                let payload = RuleStartErrorPayload {
                         listen_addr: listen_addr_clone.clone(),
-                        error: e.to_string(),
-                    };
-                    let _ = app_handle.emit("server-start-error", payload);
+                    error: e.to_string(),
+                };
+                let _ = app_handle.emit("server-start-error", payload);
 
-                    *START_FAILED.write() = true;
-                    *IS_RUNNING.write() = false;
+                *START_FAILED.write() = true;
+                *IS_RUNNING.write() = false;
+                *STARTING.write() = false;
+                let _ = app_handle.emit("status", "stopped");
+                return;
+            }
+
+            {
+                let mut started = START_STARTED_COUNT.write();
+                *started += 1;
+                let expected = *START_EXPECTED.read();
+                let failed = *START_FAILED.read();
+                if !failed && *started == expected {
+                    *IS_RUNNING.write() = true;
                     *STARTING.write() = false;
-                    let _ = app_handle.emit("status", "stopped");
-                    return;
-                }
+                    let _ = app_handle.emit("status", "running");
 
-                {
-                    let mut started = START_STARTED_COUNT.write();
-                    *started += 1;
-                    let expected = *START_EXPECTED.read();
-                    let failed = *START_FAILED.read();
-                    if !failed && *started == expected {
-                        *IS_RUNNING.write() = true;
-                        *STARTING.write() = false;
-                        let _ = app_handle.emit("status", "running");
-
-                        let final_cfg = config::get_config();
-                        for r in &final_cfg.rules {
-                            let routes_summary = r
-                                .routes
-                                .iter()
-                                .map(|rt| {
-                                    format!(
-                                        "{} -> {} upstreams",
-                                        rt.path.as_deref().unwrap_or("/"),
-                                        rt.upstreams.len()
-                                    )
-                                })
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            let log_line = format!(
-                                "[NODE {}] Server started | SSL: {} | Routes: [{}] | Allow all LAN: {}",
-                                r.listen_addr, r.ssl_enable, routes_summary, final_cfg.allow_all_lan
-                            );
-                            send_log_with_app(&app_handle, log_line);
-                        }
+                    let final_cfg = config::get_config();
+                    for r in &final_cfg.rules {
+                        let routes_summary = r
+                            .routes
+                            .iter()
+                            .map(|rt| {
+                                format!(
+                                    "{} -> {} upstreams",
+                                    rt.path.as_deref().unwrap_or("/"),
+                                    rt.upstreams.len()
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        let log_line = format!(
+                            "[NODE {}] Server started | SSL: {} | Routes: [{}] | Allow all LAN: {}",
+                            r.listen_addr, r.ssl_enable, routes_summary, final_cfg.allow_all_lan
+                        );
+                        send_log_with_app(&app_handle, log_line);
                     }
                 }
+            }
 
                 match start_rule_server(
                     app_handle.clone(),
@@ -310,25 +315,25 @@ pub fn start_server(app: tauri::AppHandle) -> Result<()> {
                 )
                 .await
                 {
-                    Ok(()) => {}
-                    Err(e) => {
+                Ok(()) => {}
+                Err(e) => {
                         error!("启动监听器失败({listen_addr_clone}): {e}");
                         send_log(format!("启动监听器失败({listen_addr_clone}): {e}"));
 
-                        let payload = RuleStartErrorPayload {
+                    let payload = RuleStartErrorPayload {
                             listen_addr: listen_addr_clone.clone(),
-                            error: e.to_string(),
-                        };
-                        let _ = app_handle.emit("server-start-error", payload);
+                        error: e.to_string(),
+                    };
+                    let _ = app_handle.emit("server-start-error", payload);
 
-                        *START_FAILED.write() = true;
-                        *IS_RUNNING.write() = false;
-                        *STARTING.write() = false;
-                        let _ = app_handle.emit("status", "stopped");
-                    }
+                    *START_FAILED.write() = true;
+                    *IS_RUNNING.write() = false;
+                    *STARTING.write() = false;
+                    let _ = app_handle.emit("status", "stopped");
                 }
-            });
-            handles.push(ServerHandle { handle, shutdown_tx });
+            }
+        });
+        handles.push(ServerHandle { handle, shutdown_tx });
         }
     }
 
@@ -375,7 +380,7 @@ pub fn stop_server(app: tauri::AppHandle) -> Result<()> {
         };
         for addr in addrs {
             let log_line = format!("[NODE {}] Server stopped", addr);
-            send_log_with_app(&app, log_line);
+        send_log_with_app(&app, log_line);
         }
     }
 
@@ -516,7 +521,7 @@ async fn start_rule_server(
     };
 
     // 初始化速率限制器（如果在该规则中启用）
-            if let Some(enabled) = rule.rate_limit_enabled {
+    if let Some(enabled) = rule.rate_limit_enabled {
         if enabled {
             let rate_limit_config = rate_limit::RateLimitConfig {
                 enabled: true,
@@ -668,7 +673,47 @@ async fn healthz() -> impl IntoResponse {
 
 #[inline]
 fn normalize_host(host: &str) -> &str {
+    // 去除端口号，只保留主机名部分
     host.split(':').next().unwrap_or(host).trim()
+}
+
+/// 检查请求的 Host 是否匹配路由配置的 Host
+/// 支持：
+/// 1. 精确匹配（不区分大小写）
+/// 2. 通配符匹配：*.example.com 匹配 example.com, www.example.com, api.example.com 等
+fn host_matches(route_host: &str, request_host: &str) -> bool {
+    let route_host = normalize_host(route_host);
+    let request_host = normalize_host(request_host);
+    
+    // 如果请求 Host 为空，只匹配路由 Host 也为空的情况
+    if request_host.is_empty() {
+        return route_host.is_empty();
+    }
+    
+    // 精确匹配（不区分大小写）
+    if route_host.eq_ignore_ascii_case(request_host) {
+        return true;
+    }
+    
+    // 通配符匹配：*.example.com
+    if route_host.starts_with("*.") {
+        let suffix = &route_host[2..]; // 去掉 "*."
+        if !suffix.is_empty() && request_host.ends_with(suffix) {
+            // 确保匹配的是完整的域名部分，而不是部分匹配
+            // 例如 *.example.com 应该匹配 www.example.com，但不匹配 evil-example.com
+            let prefix_len = request_host.len() - suffix.len();
+            if prefix_len > 0 {
+                // 检查是否有正确的分隔符（点）
+                let prefix = &request_host[..prefix_len];
+                // 前缀不能包含点（确保是子域名），且不能为空
+                if !prefix.contains('.') && !prefix.is_empty() {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    false
 }
 
 #[inline]
@@ -695,8 +740,8 @@ fn match_route<'a>(
         }
 
         let host_ok = match r.host.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            None => true,
-            Some(h) => normalize_host(h).eq_ignore_ascii_case(host),
+            None => true, // 如果路由没有配置 Host，匹配所有请求
+            Some(h) => host_matches(h, host), // 使用改进的 Host 匹配函数
         };
         if !host_ok {
             continue;

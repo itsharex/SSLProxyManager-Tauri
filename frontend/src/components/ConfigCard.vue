@@ -82,6 +82,9 @@
                     <el-col :span="10">
                       <el-form-item :label="$t('configCard.host')">
                         <el-input v-model="rt.Host" :placeholder="$t('configCard.hostPlaceholder')" />
+                        <el-text type="info" size="small" class="mini-hint">
+                          {{ $t('configCard.hostHint') }}
+                        </el-text>
                       </el-form-item>
                     </el-col>
                     <el-col :span="10">
