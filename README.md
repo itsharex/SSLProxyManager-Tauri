@@ -22,10 +22,10 @@ SSLProxyManager is based on **Tauri 2 + Rust**, providing a management interface
 ## Features Overview
 
 - **HTTP/HTTPS Proxy (rules/routes)**
-  - Multiple listen nodes (`listen_addr`)
+  - Multiple listen nodes (`listen_addr` / `listen_addrs`)
   - TLS (certificate/private key)
   - Basic Auth (with optional header forwarding)
-  - Routing (path prefix matching)
+  - Routing: path prefix matching + optional conditions (Host / HTTP methods / request headers)
   - Upstream list (with weights)
   - `proxy_pass_path` path rewriting
   - Static directory priority (`static_dir`)

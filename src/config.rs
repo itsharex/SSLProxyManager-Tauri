@@ -148,6 +148,12 @@ pub struct Route {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remove_headers: Option<Vec<String>>,
 
+    // 路由匹配增强（兼容 Nginx 风格）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub methods: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<std::collections::HashMap<String, String>>,
+
     pub upstreams: Vec<Upstream>,
 }
 
@@ -176,6 +182,9 @@ pub struct BodyReplaceRule {
     /// 是否启用
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// （可选）仅对指定的 Content-Type 生效；支持逗号分隔的多值，例如 "text/html,application/json"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_types: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

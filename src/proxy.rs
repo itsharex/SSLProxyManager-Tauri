@@ -143,10 +143,13 @@ impl RequestContext {
 
         let xff = header_to_string(headers, "x-forwarded-for");
         let xri = header_to_string(headers, "x-real-ip");
-        // 获取 Host 头，如果不存在则使用空字符串（而不是 "-"），以便正确匹配没有 Host 头的请求
+        // 获取 Host 头；在 HTTP/2 场景下可能没有传统的 Host 头（而是 :authority），
+        // axum 会把 authority 映射到 host 头，但为了稳妥，这里做多路兜底。
         let host = headers
             .get("host")
+            .or_else(|| headers.get(":authority"))
             .and_then(|v| v.to_str().ok())
+            .or_else(|| uri.authority().map(|a| a.as_str()))
             .unwrap_or("")
             .to_string();
         let referer = header_to_string(headers, "referer");
@@ -721,9 +724,11 @@ fn match_route<'a>(
     routes: &'a [config::Route],
     request_host: &str,
     path: &str,
+    method: &Method,
+    headers: &HeaderMap,
 ) -> (Option<&'a config::Route>, String) {
     let host = normalize_host(request_host);
-
+    
     let mut best: Option<(&config::Route, bool, usize)> = None; // (route, has_host_constraint, path_len)
 
     for r in routes {
@@ -731,6 +736,7 @@ fn match_route<'a>(
             continue;
         }
 
+        // 1. Path 前缀匹配（保持原有逻辑）
         let p = match r.path.as_deref() {
             Some(v) => v,
             None => continue,
@@ -739,12 +745,53 @@ fn match_route<'a>(
             continue;
         }
 
+        // 2. Host 匹配（保持原有逻辑）
         let host_ok = match r.host.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             None => true, // 如果路由没有配置 Host，匹配所有请求
             Some(h) => host_matches(h, host), // 使用改进的 Host 匹配函数
         };
         if !host_ok {
             continue;
+        }
+
+        // 3. Method 匹配（新增）
+        if let Some(ref methods) = r.methods {
+            if !methods.iter().any(|m| m.eq_ignore_ascii_case(method.as_str())) {
+                continue;
+            }
+        }
+
+        // 4. Header 匹配（新增）
+        if let Some(ref required_headers) = r.headers {
+            let mut headers_ok = true;
+            for (key, expected) in required_headers {
+                let actual = headers
+                    .get(key)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("");
+                // 支持精确匹配或包含匹配（如果 expected 包含 *）
+                if expected.contains('*') {
+                    let pattern = expected.replace('*', ".*");
+                    if let Ok(re) = regex::Regex::new(&pattern) {
+                        if !re.is_match(actual) {
+                            headers_ok = false;
+                            break;
+                        }
+                    } else {
+                        // 如果正则解析失败，回退到包含匹配
+                        if !actual.contains(expected.replace('*', "").as_str()) {
+                            headers_ok = false;
+                            break;
+                        }
+                    }
+                } else if !actual.eq_ignore_ascii_case(expected.trim()) {
+                    headers_ok = false;
+                    break;
+                }
+            }
+            if !headers_ok {
+                continue;
+            }
         }
 
         let cand = (r, r.host.as_ref().is_some(), p.len());
@@ -765,6 +812,7 @@ fn match_route<'a>(
     if let Some((r, _, _)) = best {
         (Some(r), r.id.as_deref().unwrap_or("").to_string())
     } else {
+        
         (None, String::new())
     }
 }
@@ -978,7 +1026,13 @@ async fn proxy_handler(
     let ctx = RequestContext::new(remote, req.headers(), req.method().clone(), req.uri().clone());
 
     let node = &*state.listen_addr;
-    let (route, matched_route_id) = match_route(&state.rule.routes, &ctx.host_header, &ctx.path);
+    let (route, matched_route_id) = match_route(
+        &state.rule.routes,
+        &ctx.host_header,
+        &ctx.path,
+        &ctx.method,
+        req.headers()
+    );
 
     // 0. 访问控制
     if state.http_access_control_enabled {
@@ -1389,6 +1443,37 @@ async fn proxy_handler(
                         if !rule.enabled {
                             continue;
                         }
+                        
+                        // 检查 Content-Type 过滤
+                        if let Some(ref content_types) = rule.content_types {
+                            if !content_types.trim().is_empty() {
+                                // 获取请求的 Content-Type
+                                let request_content_type = inbound_headers
+                                    .get(axum::http::header::CONTENT_TYPE)
+                                    .and_then(|v: &HeaderValue| v.to_str().ok())
+                                    .unwrap_or("")
+                                    .to_lowercase();
+                                
+                                // 解析 Content-Type，去除 charset 等参数
+                                let pure_content_type = request_content_type
+                                    .split(';')
+                                    .next()
+                                    .unwrap_or("")
+                                    .trim();
+                                
+                                // 检查是否匹配任一 Content-Type
+                                let content_type_list: Vec<String> = content_types
+                                    .split(',')
+                                    .map(|s| s.trim().to_lowercase())
+                                    .collect();
+                                
+                                if !content_type_list.iter().any(|ct| ct.as_str() == pure_content_type) {
+                                    continue; // 不匹配，跳过此规则
+                                }
+                            }
+                        }
+                        
+                        // 执行替换
                         if rule.use_regex {
                             if let Ok(re) = Regex::new(&rule.find) {
                                 modified_body = re.replace_all(&modified_body, &rule.replace).to_string();
@@ -1541,6 +1626,8 @@ async fn proxy_handler(
         };
 
         let status = resp.status();
+        let response_headers = resp.headers().clone(); // 提前 clone headers
+        
         push_log_lazy(&state.app, || {
             format_access_log(
                 node,
@@ -1568,7 +1655,7 @@ async fn proxy_handler(
         let mut out = Response::new(Body::empty());
         *out.status_mut() = StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
 
-        for (k, v) in resp.headers().iter() {
+        for (k, v) in response_headers.iter() {
             if is_hop_header_fast(k.as_str()) {
                 continue;
             }
@@ -1623,6 +1710,40 @@ async fn proxy_handler(
                         if !rule.enabled {
                             continue;
                         }
+                        
+                        // 检查 Content-Type 过滤
+                        if let Some(ref content_types) = rule.content_types {
+                            if !content_types.trim().is_empty() {
+                                // 获取响应的 Content-Type（使用提前 clone 的 headers）
+                                let response_content_type = response_headers
+                                    .get(axum::http::header::CONTENT_TYPE)
+                                    .and_then(|v: &HeaderValue| v.to_str().ok())
+                                    .unwrap_or("")
+                                    .to_lowercase();
+
+                                // 解析 Content-Type，去除 charset 等参数
+                                let pure_content_type = response_content_type
+                                    .split(';')
+                                    .next()
+                                    .unwrap_or("")
+                                    .trim();
+
+                                // 检查是否匹配任一 Content-Type
+                                let content_type_list: Vec<String> = content_types
+                                    .split(',')
+                                    .map(|s| s.trim().to_lowercase())
+                                    .collect();
+
+                                if !content_type_list
+                                    .iter()
+                                    .any(|ct| ct.as_str() == pure_content_type)
+                                {
+                                    continue; // 不匹配，跳过此规则
+                                }
+                            }
+                        }
+                        
+                        // 执行替换
                         if rule.use_regex {
                             if let Ok(re) = Regex::new(&rule.find) {
                                 modified_body = re.replace_all(&modified_body, &rule.replace).to_string();

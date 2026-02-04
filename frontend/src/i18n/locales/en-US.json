@@ -234,7 +234,7 @@
     "requestBodyReplaceHint": "Replace text in request body, supports regular expressions. Only effective for text-type request bodies.",
     "responseBodyReplace": "Response Body Replace Rules",
     "legalWarning": "⚠️ Legal Risk Warning",
-    "legalWarningContent": "Response body modification can be used for legitimate purposes (such as content customization, ad filtering, etc.), but please ensure:",
+    "legalWarningContent": "Request/response body modification can be used for legitimate purposes (such as content customization, ad filtering, etc.), but please ensure:",
     "legalWarningItem1": "Only use on devices/networks you own or have authorization for",
     "legalWarningItem2": "Not used for fraud, phishing, or other illegal purposes",
     "legalWarningItem3": "Comply with relevant laws, regulations, and website service terms",
@@ -279,7 +279,15 @@
     "routePathEmpty": "Rule {ruleIndex} / Route {routeIndex}: Path cannot be empty (at least /)",
     "routeNoUpstreamOrStatic": "Rule {ruleIndex} / Route {routeIndex}: Please configure at least one upstream server address or static file directory",
     "ruleSSLCertEmpty": "Rule {index}: Certificate file and private key file cannot be empty when SSL is enabled",
-    "ruleBasicAuthEmpty": "Rule {index}: Username and password cannot be empty when Basic Auth is enabled"
+    "ruleBasicAuthEmpty": "Rule {index}: Username and password cannot be empty when Basic Auth is enabled",
+    "methods": "HTTP Methods",
+    "methodsPlaceholder": "Leave empty to match all methods",
+    "methodsHint": "If set, this route only matches specific HTTP methods. Leave empty to match all methods (GET, POST, PUT, DELETE, etc.).",
+    "matchHeaders": "Match Headers",
+    "addMatchHeader": "Add match condition",
+    "matchHeadersHint": "If set, this route only matches when the request contains specified headers. Supports exact match or wildcard (*) match.",
+    "contentTypesPlaceholder": "text/html,application/json (empty = all)",
+    "contentTypesHint": "If set, this replace rule only applies to specific Content-Types. Comma-separated values supported, e.g. text/html,application/json. Leave empty to apply to all."
   },
   "dashboard": {
     "title": "Dashboard",

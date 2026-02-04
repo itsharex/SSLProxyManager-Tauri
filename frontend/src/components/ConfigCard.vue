@@ -94,6 +94,53 @@
                     </el-col>
                   </el-row>
 
+                  <!-- 路由匹配增强 -->
+                  <el-row :gutter="20">
+                    <el-col :span="10">
+                      <el-form-item :label="$t('configCard.methods')">
+                        <el-select
+                          v-model="rt.Methods"
+                          multiple
+                          filterable
+                          allow-create
+                          default-first-option
+                          :placeholder="$t('configCard.methodsPlaceholder')"
+                          style="width: 100%"
+                        >
+                          <el-option label="GET" value="GET" />
+                          <el-option label="POST" value="POST" />
+                          <el-option label="PUT" value="PUT" />
+                          <el-option label="DELETE" value="DELETE" />
+                          <el-option label="PATCH" value="PATCH" />
+                          <el-option label="HEAD" value="HEAD" />
+                          <el-option label="OPTIONS" value="OPTIONS" />
+                        </el-select>
+                        <el-text type="info" size="small" class="mini-hint">
+                          {{ $t('configCard.methodsHint') }}
+                        </el-text>
+                      </el-form-item>
+                    </el-col>
+                    <el-col :span="10">
+                      <el-form-item :label="$t('configCard.matchHeaders')">
+                        <div class="match-headers-section">
+                          <TransitionGroup name="list" tag="div">
+                            <div v-for="(kv, hIndex) in (rt.MatchHeadersList || [])" :key="hIndex" class="header-item">
+                              <el-input v-model="kv.Key" :placeholder="$t('configCard.headerKeyPlaceholder')" />
+                              <el-input v-model="kv.Value" :placeholder="$t('configCard.headerValuePlaceholder')" />
+                              <el-button @click="(rt.MatchHeadersList || []).splice(hIndex, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
+                            </div>
+                          </TransitionGroup>
+                          <el-button @click="(rt.MatchHeadersList ||= []).push({ Key: '', Value: '' })" type="primary" size="small" style="margin-top: 12px;">
+                            <el-icon><Plus /></el-icon> {{ $t('configCard.addMatchHeader') }}
+                          </el-button>
+                          <el-text type="info" size="small" class="mini-hint">
+                            {{ $t('configCard.matchHeadersHint') }}
+                          </el-text>
+                        </div>
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+
                   <el-row :gutter="22">
                     <el-col :span="10">
                       <el-form-item :label="$t('configCard.proxyPassPath')">
@@ -194,9 +241,27 @@
                     </el-button>
                   </div>
                 </div>
-
                 <div class="sub-section">
-                  <div class="sub-section-header">{{ $t('configCard.requestResponseModify') }}</div>
+                  <div class="sub-section-header">{{ $t('configCard.requestResponseModify') }}
+                    <el-alert
+                        type="warning"
+                        :closable="false"
+                        style="width: 50%;"
+                    >
+                      <template #title>
+                        <strong>{{ $t('configCard.legalWarning') }}</strong>
+                      </template>
+                      <template #default>
+                        <div style="font-size: 13px; line-height: 1.5;">
+                          {{ $t('configCard.legalWarningContent') }}
+                          <br />• {{ $t('configCard.legalWarningItem1') }}
+                          <br />• {{ $t('configCard.legalWarningItem2') }}
+                          <br />• {{ $t('configCard.legalWarningItem3') }}
+                          <br />• {{ $t('configCard.legalWarningItem4') }}
+                        </div>
+                      </template>
+                    </el-alert>
+                  </div>
                   <div class="sub-section-body">
                     <!-- URL 重写规则 -->
                     <el-form-item :label="$t('configCard.urlRewrite')">
@@ -222,12 +287,40 @@
                         <div v-for="(rule, idx) in (rt.RequestBodyReplace || [])" :key="idx" class="replace-rule-item">
                           <el-input v-model="rule.Find" :placeholder="$t('configCard.findText')" style="flex: 1;" />
                           <el-input v-model="rule.Replace" :placeholder="$t('configCard.replaceWith')" style="flex: 1;" />
+                          <el-select
+                            v-model="rule.ContentTypes"
+                            multiple
+                            filterable
+                            allow-create
+                            default-first-option
+                            :placeholder="$t('configCard.contentTypesPlaceholder')"
+                            style="flex: 1;"
+                          >
+                            <el-option label="text/html" value="text/html" />
+                            <el-option label="text/plain" value="text/plain" />
+                            <el-option label="text/css" value="text/css" />
+                            <el-option label="text/javascript" value="text/javascript" />
+                            <el-option label="application/json" value="application/json" />
+                            <el-option label="application/xml" value="application/xml" />
+                            <el-option label="application/x-www-form-urlencoded" value="application/x-www-form-urlencoded" />
+                            <el-option label="multipart/form-data" value="multipart/form-data" />
+                            <el-option label="image/jpeg" value="image/jpeg" />
+                            <el-option label="image/png" value="image/png" />
+                            <el-option label="image/gif" value="image/gif" />
+                            <el-option label="image/svg+xml" value="image/svg+xml" />
+                            <el-option label="application/pdf" value="application/pdf" />
+                            <el-option label="application/zip" value="application/zip" />
+                            <el-option label="video/mp4" value="video/mp4" />
+                            <el-option label="audio/mpeg" value="audio/mpeg" />
+                            <el-option label="font/woff2" value="font/woff2" />
+                            <el-option label="application/octet-stream" value="application/octet-stream" />
+                          </el-select>
                           <el-checkbox v-model="rule.UseRegex">{{ $t('configCard.regex') }}</el-checkbox>
                           <el-switch v-model="rule.Enabled" />
                           <el-button @click="(rt.RequestBodyReplace || []).splice(idx, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
                         </div>
                       </TransitionGroup>
-                      <el-button @click="(rt.RequestBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
+                      <el-button @click="(rt.RequestBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true, ContentTypes: [] })" type="primary" size="small" style="margin-top: 12px;">
                         <el-icon><Plus /></el-icon> {{ $t('configCard.addRequestBodyReplace') }}
                       </el-button>
                       <el-text type="info" size="small" class="mini-hint">
@@ -237,34 +330,44 @@
 
                     <!-- 响应体替换规则 -->
                     <el-form-item :label="$t('configCard.responseBodyReplace')">
-                      <el-alert
-                        type="warning"
-                        :closable="false"
-                        style="margin-bottom: 12px;"
-                      >
-                        <template #title>
-                          <strong>{{ $t('configCard.legalWarning') }}</strong>
-                        </template>
-                        <template #default>
-                          <div style="font-size: 12px; line-height: 1.6;">
-                            {{ $t('configCard.legalWarningContent') }}
-                            <br />• {{ $t('configCard.legalWarningItem1') }}
-                            <br />• {{ $t('configCard.legalWarningItem2') }}
-                            <br />• {{ $t('configCard.legalWarningItem3') }}
-                            <br />• {{ $t('configCard.legalWarningItem4') }}
-                          </div>
-                        </template>
-                      </el-alert>
                       <TransitionGroup name="list" tag="div">
                         <div v-for="(rule, idx) in (rt.ResponseBodyReplace || [])" :key="idx" class="replace-rule-item">
                           <el-input v-model="rule.Find" :placeholder="$t('configCard.findText')" style="flex: 1;" />
                           <el-input v-model="rule.Replace" :placeholder="$t('configCard.replaceWith')" style="flex: 1;" />
+                          <el-select
+                            v-model="rule.ContentTypes"
+                            multiple
+                            filterable
+                            allow-create
+                            default-first-option
+                            :placeholder="$t('configCard.contentTypesPlaceholder')"
+                            style="flex: 1;"
+                          >
+                            <el-option label="text/html" value="text/html" />
+                            <el-option label="text/plain" value="text/plain" />
+                            <el-option label="text/css" value="text/css" />
+                            <el-option label="text/javascript" value="text/javascript" />
+                            <el-option label="application/json" value="application/json" />
+                            <el-option label="application/xml" value="application/xml" />
+                            <el-option label="application/x-www-form-urlencoded" value="application/x-www-form-urlencoded" />
+                            <el-option label="multipart/form-data" value="multipart/form-data" />
+                            <el-option label="image/jpeg" value="image/jpeg" />
+                            <el-option label="image/png" value="image/png" />
+                            <el-option label="image/gif" value="image/gif" />
+                            <el-option label="image/svg+xml" value="image/svg+xml" />
+                            <el-option label="application/pdf" value="application/pdf" />
+                            <el-option label="application/zip" value="application/zip" />
+                            <el-option label="video/mp4" value="video/mp4" />
+                            <el-option label="audio/mpeg" value="audio/mpeg" />
+                            <el-option label="font/woff2" value="font/woff2" />
+                            <el-option label="application/octet-stream" value="application/octet-stream" />
+                          </el-select>
                           <el-checkbox v-model="rule.UseRegex">{{ $t('configCard.regex') }}</el-checkbox>
                           <el-switch v-model="rule.Enabled" />
                           <el-button @click="(rt.ResponseBodyReplace || []).splice(idx, 1)" type="danger" size="small">{{ $t('configCard.delete') }}</el-button>
                         </div>
                       </TransitionGroup>
-                      <el-button @click="(rt.ResponseBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true })" type="primary" size="small" style="margin-top: 12px;">
+                      <el-button @click="(rt.ResponseBodyReplace ||= []).push({ Find: '', Replace: '', UseRegex: false, Enabled: true, ContentTypes: [] })" type="primary" size="small" style="margin-top: 12px;">
                         <el-icon><Plus /></el-icon> {{ $t('configCard.addResponseBodyReplace') }}
                       </el-button>
                       <el-text type="info" size="small" class="mini-hint">
@@ -421,6 +524,11 @@ interface HeaderKV {
   Value: string
 }
 
+interface HeaderKV {
+  Key: string
+  Value: string
+}
+
 interface Route {
   ID?: string
   Enabled?: boolean
@@ -439,6 +547,10 @@ interface Route {
   ResponseBodyReplace?: BodyReplaceRule[]
   RemoveHeaders?: string[]
 
+  // 路由匹配增强（兼容 Nginx 风格）
+  Methods?: string[]
+  MatchHeadersList?: HeaderKV[]
+
   Upstreams: Upstream[]
 }
 
@@ -453,6 +565,7 @@ interface BodyReplaceRule {
   Replace: string
   UseRegex?: boolean
   Enabled?: boolean
+  ContentTypes?: string[]
 }
 
 interface ListenRule {
@@ -577,14 +690,21 @@ onMounted(async () => {
           Replace: r.replace || '',
           UseRegex: !!r.use_regex,
           Enabled: r.enabled !== undefined ? !!r.enabled : true,
+          ContentTypes: r.content_types ? r.content_types.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
         })),
         ResponseBodyReplace: (rt.response_body_replace || []).map((r: any) => ({
           Find: r.find || '',
           Replace: r.replace || '',
           UseRegex: !!r.use_regex,
           Enabled: r.enabled !== undefined ? !!r.enabled : true,
+          ContentTypes: r.content_types ? r.content_types.split(',').map((s: string) => s.trim()).filter((s: string) => s) : [],
         })),
         RemoveHeaders: rt.remove_headers || [],
+        Methods: rt.methods || [],
+        MatchHeadersList: (rt.headers && Object.entries(rt.headers).map(([Key, Value]) => ({
+          Key,
+          Value: String(Value ?? ''),
+        }))) || [],
         Upstreams: (rt.upstreams || []).map((u: any) => ({
           URL: u.url || '',
           Weight: u.weight || 1,
@@ -759,6 +879,8 @@ const addRoute = (ruleIndex: number) => {
     RequestBodyReplace: [],
     ResponseBodyReplace: [],
     RemoveHeaders: [],
+    Methods: [],
+    MatchHeadersList: [],
     Upstreams: [{ URL: '', Weight: 1 }],
   })
 }
@@ -828,6 +950,8 @@ const exportConfigToml = async () => {
 // 获取配置（供父组件调用）
 const getConfig = () => {
   const currentRules = [...rules.value]
+  
+
 
   const cleanedRules: ListenRule[] = currentRules.map((rule) => ({
     ID: (rule.ID || '').trim(),
@@ -866,6 +990,9 @@ const getConfig = () => {
         SetHeaders: setHeaders,
         StaticDir: (rt.StaticDir || '').trim(),
         ExcludeBasicAuth: !!rt.ExcludeBasicAuth,
+        // 新增字段
+        Methods: Array.isArray(rt.Methods) ? rt.Methods : [],
+        MatchHeadersList: Array.isArray(rt.MatchHeadersList) ? rt.MatchHeadersList : [],
         UrlRewriteRules: (rt.UrlRewriteRules || []).filter((r) => r.Pattern.trim() !== '').map((r) => ({
           Pattern: r.Pattern.trim(),
           Replacement: r.Replacement.trim(),
@@ -876,12 +1003,14 @@ const getConfig = () => {
           Replace: r.Replace.trim(),
           UseRegex: !!r.UseRegex,
           Enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+          ContentTypes: Array.isArray(r.ContentTypes) ? r.ContentTypes : [],
         })),
         ResponseBodyReplace: (rt.ResponseBodyReplace || []).filter((r) => r.Find.trim() !== '').map((r) => ({
           Find: r.Find.trim(),
           Replace: r.Replace.trim(),
           UseRegex: !!r.UseRegex,
           Enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+          ContentTypes: Array.isArray(r.ContentTypes) ? r.ContentTypes : [],
         })),
         RemoveHeaders: (rt.RemoveHeaders || []).filter((h) => h.trim() !== '').map((h) => h.trim()),
         Upstreams: rt.Upstreams.filter((u) => u.URL.trim() !== '').map((u) => ({
@@ -940,39 +1069,57 @@ const getConfig = () => {
     rate_limit_burst_size: r.RateLimitBurstSize !== undefined ? Number(r.RateLimitBurstSize) : undefined,
     rate_limit_window_seconds: r.RateLimitWindowSeconds !== undefined ? Number(r.RateLimitWindowSeconds) : 1,
     rate_limit_ban_seconds: r.RateLimitBanSeconds !== undefined ? Number(r.RateLimitBanSeconds) : undefined,
-    routes: (r.Routes || []).map((rt: any) => ({
-      id: rt.ID || undefined,
-      enabled: rt.Enabled !== undefined ? !!rt.Enabled : true,
-      host: rt.Host || undefined,
-      path: rt.Path,
-      proxy_pass_path: rt.ProxyPassPath || undefined,
-      follow_redirects: !!rt.FollowRedirects,
-      set_headers: rt.SetHeaders || {},
-      static_dir: rt.StaticDir || undefined,
-      exclude_basic_auth: !!rt.ExcludeBasicAuth,
-      url_rewrite_rules: (rt.UrlRewriteRules || []).filter((r: any) => r.Pattern.trim() !== '').map((r: any) => ({
-        pattern: r.Pattern.trim(),
-        replacement: r.Replacement.trim(),
-        enabled: r.Enabled !== undefined ? !!r.Enabled : true,
-      })),
-      request_body_replace: (rt.RequestBodyReplace || []).filter((r: any) => r.Find.trim() !== '').map((r: any) => ({
-        find: r.Find.trim(),
-        replace: r.Replace.trim(),
-        use_regex: !!r.UseRegex,
-        enabled: r.Enabled !== undefined ? !!r.Enabled : true,
-      })),
-      response_body_replace: (rt.ResponseBodyReplace || []).filter((r: any) => r.Find.trim() !== '').map((r: any) => ({
-        find: r.Find.trim(),
-        replace: r.Replace.trim(),
-        use_regex: !!r.UseRegex,
-        enabled: r.Enabled !== undefined ? !!r.Enabled : true,
-      })),
-      remove_headers: (rt.RemoveHeaders || []).filter((h: any) => h.trim() !== '').map((h: any) => h.trim()),
-      upstreams: (rt.Upstreams || []).map((u: any) => ({
-        url: u.URL,
-        weight: u.Weight,
-      })),
-    })),
+    routes: (r.Routes || []).map((rt: any) => {
+      // 处理 MatchHeadersList -> headers 对象
+      const headersObj: Record<string, string> = {}
+      if (Array.isArray(rt.MatchHeadersList)) {
+        for (const kv of rt.MatchHeadersList) {
+          const key = (kv.Key || '').trim()
+          if (key) {
+            headersObj[key] = (kv.Value || '').trim()
+          }
+        }
+      }
+
+      return {
+        id: rt.ID || undefined,
+        enabled: rt.Enabled !== undefined ? !!rt.Enabled : true,
+        host: rt.Host || undefined,
+        path: rt.Path,
+        proxy_pass_path: rt.ProxyPassPath || undefined,
+        follow_redirects: !!rt.FollowRedirects,
+        set_headers: rt.SetHeaders || {},
+        static_dir: rt.StaticDir || undefined,
+        exclude_basic_auth: !!rt.ExcludeBasicAuth,
+        // 新增字段映射
+        methods: Array.isArray(rt.Methods) && rt.Methods.length > 0 ? rt.Methods.map((m: string) => m.trim().toUpperCase()).filter((m: string) => m) : undefined,
+        headers: Object.keys(headersObj).length > 0 ? headersObj : undefined,
+        url_rewrite_rules: (rt.UrlRewriteRules || []).filter((r: any) => r.Pattern.trim() !== '').map((r: any) => ({
+          pattern: r.Pattern.trim(),
+          replacement: r.Replacement.trim(),
+          enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+        })),
+        request_body_replace: (rt.RequestBodyReplace || []).filter((r: any) => r.Find.trim() !== '').map((r: any) => ({
+          find: r.Find.trim(),
+          replace: r.Replace.trim(),
+          use_regex: !!r.UseRegex,
+          enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+          content_types: Array.isArray(r.ContentTypes) && r.ContentTypes.length > 0 ? r.ContentTypes.map((s: string) => (s || '').trim()).filter((s: string) => s).join(',') : undefined,
+        })),
+        response_body_replace: (rt.ResponseBodyReplace || []).filter((r: any) => r.Find.trim() !== '').map((r: any) => ({
+          find: r.Find.trim(),
+          replace: r.Replace.trim(),
+          use_regex: !!r.UseRegex,
+          enabled: r.Enabled !== undefined ? !!r.Enabled : true,
+          content_types: Array.isArray(r.ContentTypes) && r.ContentTypes.length > 0 ? r.ContentTypes.map((s: string) => (s || '').trim()).filter((s: string) => s).join(',') : undefined,
+        })),
+        remove_headers: (rt.RemoveHeaders || []).filter((h: any) => h.trim() !== '').map((h: any) => h.trim()),
+        upstreams: (rt.Upstreams || []).map((u: any) => ({
+          url: u.URL,
+          weight: u.Weight,
+        })),
+      }
+    }),
   }))
 
   return {

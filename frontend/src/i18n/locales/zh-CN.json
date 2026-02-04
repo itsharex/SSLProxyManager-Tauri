@@ -230,7 +230,7 @@
     "requestBodyReplaceHint": "对请求体进行文本替换，支持正则表达式。仅对文本类型的请求体有效。",
     "responseBodyReplace": "响应体替换规则",
     "legalWarning": "⚠️ 法律风险提示",
-    "legalWarningContent": "响应体修改功能可用于合法用途（如内容定制、广告过滤等），但请确保：",
+    "legalWarningContent": "请求/响应体修改功能可用于合法用途（如内容定制、广告过滤等），但请确保：",
     "legalWarningItem1": "仅在你拥有或已获得授权的设备/网络上使用",
     "legalWarningItem2": "不用于欺诈、钓鱼或其他非法用途",
     "legalWarningItem3": "遵守相关法律法规和网站服务条款",
@@ -275,7 +275,15 @@
     "routePathEmpty": "规则 {ruleIndex} / 路由 {routeIndex}：Path 不能为空（至少为 /）",
     "routeNoUpstreamOrStatic": "规则 {ruleIndex} / 路由 {routeIndex}：请至少配置一个上游服务器地址或静态文件目录",
     "ruleSSLCertEmpty": "规则 {index}：启用SSL时证书文件和私钥文件不能为空",
-    "ruleBasicAuthEmpty": "规则 {index}：启用Basic Auth时用户名和密码不能为空"
+    "ruleBasicAuthEmpty": "规则 {index}：启用Basic Auth时用户名和密码不能为空",
+    "methods": "HTTP 方法",
+    "methodsPlaceholder": "留空匹配所有方法",
+    "methodsHint": "指定该路由仅对特定 HTTP 方法生效。留空则匹配所有方法（GET、POST、PUT、DELETE 等）。",
+    "matchHeaders": "匹配请求头",
+    "addMatchHeader": "添加匹配条件",
+    "matchHeadersHint": "指定该路由仅在请求包含特定 Header 时生效。支持精确匹配或通配符（*）匹配。",
+    "contentTypesPlaceholder": "text/html,application/json（留空匹配所有）",
+    "contentTypesHint": "指定该替换规则仅对特定 Content-Type 生效。支持逗号分隔的多个值，如 text/html,application/json。留空则对所有响应体生效。"
   },
   "dashboard": {
     "title": "仪表盘",
